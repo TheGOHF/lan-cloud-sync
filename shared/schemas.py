@@ -15,3 +15,9 @@ class FileMetadataResponse(BaseModel):
     hash: str
     updated_at: datetime
     deleted: bool
+
+
+class DeleteFileResponse(BaseModel):
+    path: str
+    version: int
+    deleted: bool

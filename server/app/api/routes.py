@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -11,15 +11,17 @@ from server.app.services.file_service import (
     create_or_update_file,
     get_file_by_path,
     list_files,
+    soft_delete_file,
     to_file_metadata_response,
 )
 from server.app.services.hashing import calculate_file_sha256
 from server.app.services.storage_service import (
+    delete_stored_file,
     get_existing_file_path,
     iter_file_chunks,
     save_upload_file,
 )
-from shared.schemas import FileMetadataResponse, UploadFileResponse
+from shared.schemas import DeleteFileResponse, FileMetadataResponse, UploadFileResponse
 
 
 router = APIRouter()
@@ -86,4 +88,23 @@ def download_file(
         iter_file_chunks(file_path),
         media_type="application/octet-stream",
         headers=headers,
+    )
+
+
+@router.delete("/files", response_model=DeleteFileResponse)
+def delete_file(
+    path: str = Query(...),
+    device_id: str = Query(...),
+    db: Session = Depends(get_db),
+) -> DeleteFileResponse:
+    file_record = soft_delete_file(db, path=path, device_id=device_id)
+    if file_record is None:
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    delete_stored_file(file_record.path)
+
+    return DeleteFileResponse(
+        path=file_record.path,
+        version=file_record.version,
+        deleted=file_record.deleted,
     )

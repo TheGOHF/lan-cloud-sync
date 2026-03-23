@@ -13,7 +13,7 @@ from requests.exceptions import RequestException
 
 from .config import CHUNK_SIZE, SERVER_URL
 from .file_utils import iter_file_chunks
-from shared.schemas import FileMetadataResponse, UploadFileResponse
+from shared.schemas import DeleteFileResponse, FileMetadataResponse, UploadFileResponse
 
 
 class NetworkError(RuntimeError):
@@ -57,6 +57,15 @@ def download_file(remote_path: str, local_path: Path) -> None:
         for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
             if chunk:
                 file_obj.write(chunk)
+
+
+def delete_file(remote_path: str, device_id: str) -> DeleteFileResponse:
+    response = _request(
+        "DELETE",
+        "/files",
+        params={"path": remote_path, "device_id": device_id},
+    )
+    return DeleteFileResponse.model_validate(response.json())
 
 
 def _request(

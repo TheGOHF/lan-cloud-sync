@@ -53,6 +53,26 @@ def get_existing_file_path(relative_path: str) -> Path:
     return file_path
 
 
+def list_storage_files() -> list[str]:
+    relative_paths: list[str] = []
+
+    if not STORAGE_DIR.exists():
+        return relative_paths
+
+    for file_path in STORAGE_DIR.rglob("*"):
+        if file_path.is_file():
+            relative_paths.append(file_path.relative_to(STORAGE_DIR).as_posix())
+
+    return sorted(relative_paths)
+
+
+def delete_stored_file(relative_path: str) -> None:
+    file_path = build_storage_path(relative_path)
+    if file_path.exists():
+        file_path.unlink()
+        _remove_empty_parent_directories(file_path.parent)
+
+
 def iter_file_chunks(file_path: Path) -> Iterator[bytes]:
     file_obj: BinaryIO = file_path.open("rb")
     try:
@@ -60,3 +80,13 @@ def iter_file_chunks(file_path: Path) -> Iterator[bytes]:
             yield chunk
     finally:
         file_obj.close()
+
+
+def _remove_empty_parent_directories(directory: Path) -> None:
+    while directory != STORAGE_DIR and directory.exists():
+        try:
+            directory.rmdir()
+        except OSError:
+            return
+
+        directory = directory.parent

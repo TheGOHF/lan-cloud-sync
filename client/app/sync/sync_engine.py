@@ -9,14 +9,13 @@ from pathlib import Path
 from .config import BASE_PATH
 from .db import (
     LocalFileEntry,
-    get_latest_sync_time,
     get_local_file,
     init_db,
     list_local_files,
     upsert_local_file,
 )
 from .file_utils import LocalFileState, calculate_file_hash, scan_local_folder
-from .network import download_file, get_files, upload_file
+from .network import delete_file, download_file, get_files, upload_file
 from shared.schemas import FileMetadataResponse
 
 
@@ -67,18 +66,63 @@ def build_sync_plan(
         remote_state = server_index.get(path)
         local_record = local_db_index.get(path)
 
+        if remote_state is None and local_state is None:
+            continue
+
         if remote_state is None and local_state is not None:
             actions.append(SyncAction(action="upload", path=path, reason="missing_on_server"))
             continue
 
         if remote_state is None:
+            if local_record is not None and not local_record.deleted:
+                actions.append(
+                    SyncAction(
+                        action="mark_local_deleted",
+                        path=path,
+                        reason="missing_on_both_sides",
+                    )
+                )
             continue
 
         if remote_state.deleted:
-            logger.info("Skip deleted remote file: %s", path)
+            if local_state is not None:
+                if local_record is None or local_record.deleted:
+                    actions.append(
+                        SyncAction(
+                            action="upload",
+                            path=path,
+                            reason=f"local_recreated_after_remote_delete_v{remote_state.version}",
+                        )
+                    )
+                else:
+                    actions.append(
+                        SyncAction(
+                            action="delete_local",
+                            path=path,
+                            reason=f"remote_deleted_v{remote_state.version}",
+                        )
+                    )
+            elif local_record is None or local_record.version != remote_state.version or not local_record.deleted:
+                actions.append(
+                    SyncAction(
+                        action="mark_local_deleted",
+                        path=path,
+                        reason=f"remote_deleted_v{remote_state.version}",
+                    )
+                )
             continue
 
         if local_state is None:
+            if local_record is not None and not local_record.deleted:
+                actions.append(
+                    SyncAction(
+                        action="delete_remote",
+                        path=path,
+                        reason=f"deleted_locally_since_v{local_record.version}",
+                    )
+                )
+                continue
+
             actions.append(SyncAction(action="download", path=path, reason="missing_locally"))
             continue
 
@@ -107,10 +151,22 @@ def build_sync_plan(
             continue
 
         local_changed = local_state["hash"] != local_record.hash
+        locally_deleted = local_record.deleted
         remote_changed = (
             remote_state.version != local_record.version
             or remote_state.hash != local_record.hash
+            or remote_state.deleted != local_record.deleted
         )
+
+        if locally_deleted and not remote_state.deleted:
+            actions.append(
+                SyncAction(
+                    action="upload",
+                    path=path,
+                    reason=f"local_recreated_since_v{local_record.version}",
+                )
+            )
+            continue
 
         if local_changed and remote_changed:
             actions.append(
@@ -167,6 +223,7 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             version=response.version,
             last_synced=datetime.now(timezone.utc),
             conflict=False,
+            deleted=False,
         )
         return
 
@@ -180,6 +237,7 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             version=remote_record.version,
             last_synced=datetime.now(timezone.utc),
             conflict=False,
+            deleted=False,
         )
         return
 
@@ -194,6 +252,51 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             version=remote_record.version,
             last_synced=datetime.now(timezone.utc),
             conflict=False,
+            deleted=False,
+        )
+        return
+
+    if action.action == "delete_remote":
+        logger.info("Delete remote %s (%s)", action.path, action.reason)
+        response = delete_file(action.path, device_id=device_id)
+        upsert_local_file(
+            path=action.path,
+            file_hash="",
+            version=response.version,
+            last_synced=datetime.now(timezone.utc),
+            conflict=False,
+            deleted=True,
+        )
+        return
+
+    if action.action == "delete_local":
+        logger.info("Delete local %s (%s)", action.path, action.reason)
+        if local_path.exists():
+            local_path.unlink()
+            _remove_empty_parent_directories(local_path.parent, local_base_path)
+
+        remote_record = _get_remote_record(action.path)
+        upsert_local_file(
+            path=action.path,
+            file_hash="",
+            version=remote_record.version,
+            last_synced=datetime.now(timezone.utc),
+            conflict=False,
+            deleted=True,
+        )
+        return
+
+    if action.action == "mark_local_deleted":
+        logger.info("Mark local tombstone %s (%s)", action.path, action.reason)
+        local_record = get_local_file(action.path)
+        remote_record = _get_remote_record_or_none(action.path)
+        upsert_local_file(
+            path=action.path,
+            file_hash="",
+            version=_resolve_deleted_version(local_record=local_record, remote_record=remote_record),
+            last_synced=datetime.now(timezone.utc),
+            conflict=False,
+            deleted=True,
         )
         return
 
@@ -228,6 +331,7 @@ def _save_conflict_copy(*, action: SyncAction, local_base_path: Path) -> None:
         version=source_record.version if source_record is not None else 0,
         last_synced=datetime.now(timezone.utc),
         conflict=True,
+        deleted=False,
     )
 
 
@@ -237,6 +341,37 @@ def _get_remote_record(path: str) -> FileMetadataResponse:
             return file_record
 
     raise FileNotFoundError(path)
+
+
+def _get_remote_record_or_none(path: str) -> FileMetadataResponse | None:
+    try:
+        return _get_remote_record(path)
+    except FileNotFoundError:
+        return None
+
+
+def _resolve_deleted_version(
+    *,
+    local_record: LocalFileEntry | None,
+    remote_record: FileMetadataResponse | None,
+) -> int:
+    if remote_record is not None:
+        return remote_record.version
+
+    if local_record is not None:
+        return local_record.version
+
+    return 0
+
+
+def _remove_empty_parent_directories(directory: Path, base_path: Path) -> None:
+    while directory != base_path and directory.exists():
+        try:
+            directory.rmdir()
+        except OSError:
+            return
+
+        directory = directory.parent
 
 
 # TODO: Persist server delta checkpoints separately from file rows to reduce GET /files load.

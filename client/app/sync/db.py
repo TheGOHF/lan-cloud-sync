@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, create_engine, select
+from sqlalchemy import Boolean, DateTime, Integer, String, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from .config import LOCAL_DB_PATH
@@ -21,6 +21,7 @@ class LocalFileEntry(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     last_synced: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     conflict: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 LOCAL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -30,6 +31,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, clas
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _ensure_deleted_column()
 
 
 def get_local_file(path: str) -> LocalFileEntry | None:
@@ -44,6 +46,7 @@ def upsert_local_file(
     version: int,
     last_synced: datetime,
     conflict: bool,
+    deleted: bool,
 ) -> LocalFileEntry:
     with SessionLocal.begin() as session:
         entry = session.get(LocalFileEntry, path)
@@ -54,6 +57,7 @@ def upsert_local_file(
                 version=version,
                 last_synced=last_synced,
                 conflict=conflict,
+                deleted=deleted,
             )
             session.add(entry)
         else:
@@ -61,6 +65,7 @@ def upsert_local_file(
             entry.version = version
             entry.last_synced = last_synced
             entry.conflict = conflict
+            entry.deleted = deleted
 
     with SessionLocal() as session:
         refreshed = session.get(LocalFileEntry, path)
@@ -82,3 +87,15 @@ def get_latest_sync_time() -> datetime | None:
         return None
 
     return max(entry.last_synced for entry in entries)
+
+
+def _ensure_deleted_column() -> None:
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("local_files")}
+    if "deleted" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(
+            text("ALTER TABLE local_files ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT 0")
+        )
