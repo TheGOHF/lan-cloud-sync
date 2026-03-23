@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from ..sync.config import BASE_PATH
 from ..sync.db import init_db, list_local_files
+from ..sync.watcher import watch_forever
 from ..sync.sync_engine import SyncAction, apply_action, get_sync_plan, sync
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -50,6 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = subparsers.add_parser("list")
     list_parser.set_defaults(handler=handle_list)
 
+    watch_parser = subparsers.add_parser("watch")
+    watch_parser.add_argument("--device-id", default="cli-device")
+    watch_parser.add_argument("--base-path", type=Path, default=BASE_PATH)
+    watch_parser.add_argument("--poll-interval", type=int, default=5)
+    watch_parser.set_defaults(handler=handle_watch)
+
     return parser
 
 
@@ -81,6 +88,14 @@ def handle_list(_: argparse.Namespace) -> None:
     for entry in list_local_files():
         conflict_flag = "conflict" if entry.conflict else "ok"
         print(f"{entry.path}\tv{entry.version}\t{entry.hash}\t{conflict_flag}")
+
+
+def handle_watch(args: argparse.Namespace) -> None:
+    watch_forever(
+        local_base_path=args.base_path,
+        device_id=args.device_id,
+        poll_interval=args.poll_interval,
+    )
 
 
 def _print_actions(actions: list[SyncAction]) -> None:

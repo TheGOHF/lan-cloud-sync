@@ -41,7 +41,8 @@ def sync(local_base_path: Path = BASE_PATH, device_id: str = "unknown-device") -
 def get_sync_plan(local_base_path: Path = BASE_PATH) -> list[SyncAction]:
     local_base_path.mkdir(parents=True, exist_ok=True)
 
-    server_files = get_files(updated_since=get_latest_sync_time())
+    # TODO: Re-enable delta sync once the server supports updated_since filtering explicitly.
+    server_files = get_files()
     server_index = {file_record.path: file_record for file_record in server_files}
     local_index = scan_local_folder(local_base_path)
     local_db_index = {entry.path: entry for entry in list_local_files()}
