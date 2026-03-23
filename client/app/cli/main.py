@@ -3,12 +3,16 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-
-from app.sync.config import BASE_PATH
-from app.sync.db import init_db, list_local_files
-from app.sync.sync_engine import SyncAction, apply_action, get_sync_plan, sync
+import sys
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from ..sync.config import BASE_PATH
+from ..sync.db import init_db, list_local_files
+from ..sync.sync_engine import SyncAction, apply_action, get_sync_plan, sync
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 

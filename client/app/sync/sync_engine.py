@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.sync.config import BASE_PATH
-from app.sync.db import (
+from .config import BASE_PATH
+from .db import (
     LocalFileEntry,
     get_latest_sync_time,
     get_local_file,
@@ -15,8 +15,8 @@ from app.sync.db import (
     list_local_files,
     upsert_local_file,
 )
-from app.sync.file_utils import LocalFileState, calculate_file_hash, scan_local_folder
-from app.sync.network import download_file, get_files, upload_file
+from .file_utils import LocalFileState, calculate_file_hash, scan_local_folder
+from .network import download_file, get_files, upload_file
 from shared.schemas import FileMetadataResponse
 
 

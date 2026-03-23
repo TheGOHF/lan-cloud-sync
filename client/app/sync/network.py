@@ -8,10 +8,11 @@ from uuid import uuid4
 
 import requests
 from requests import Response
+from requests import Session
 from requests.exceptions import RequestException
 
-from app.sync.config import CHUNK_SIZE, SERVER_URL
-from app.sync.file_utils import iter_file_chunks
+from .config import CHUNK_SIZE, SERVER_URL
+from .file_utils import iter_file_chunks
 from shared.schemas import FileMetadataResponse, UploadFileResponse
 
 
@@ -66,12 +67,21 @@ def _request(
     url = f"{SERVER_URL.rstrip('/')}{endpoint}"
 
     try:
-        response = requests.request(method, url, timeout=30, **kwargs)
+        response = session.request(method, url, timeout=30, **kwargs)
         response.raise_for_status()
     except RequestException as exc:
         raise NetworkError(_build_error_message(endpoint, exc)) from exc
 
     return response
+
+
+def _build_session() -> Session:
+    client = requests.Session()
+    client.trust_env = False
+    return client
+
+
+session = _build_session()
 
 
 class MultipartUploadStream:

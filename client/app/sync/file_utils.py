@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 from typing import TypedDict
 
-from app.sync.config import CHUNK_SIZE
+from .config import CHUNK_SIZE
 
 
 class LocalFileState(TypedDict):

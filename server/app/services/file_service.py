@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.file import FileRecord
+from server.app.models.file import FileRecord
 from shared.schemas import FileMetadataResponse
 
 

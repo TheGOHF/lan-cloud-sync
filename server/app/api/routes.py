@@ -6,15 +6,19 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.services.file_service import (
+from server.app.db.session import get_db
+from server.app.services.file_service import (
     create_or_update_file,
     get_file_by_path,
     list_files,
     to_file_metadata_response,
 )
-from app.services.hashing import calculate_file_sha256
-from app.services.storage_service import get_existing_file_path, iter_file_chunks, save_upload_file
+from server.app.services.hashing import calculate_file_sha256
+from server.app.services.storage_service import (
+    get_existing_file_path,
+    iter_file_chunks,
+    save_upload_file,
+)
 from shared.schemas import FileMetadataResponse, UploadFileResponse
 
 

@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from app.sync.config import LOCAL_DB_PATH
+from .config import LOCAL_DB_PATH
 
 
 class Base(DeclarativeBase):

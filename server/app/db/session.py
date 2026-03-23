@@ -4,7 +4,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.base import Base
+from server.app.db.base import Base
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -16,7 +16,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, clas
 
 
 def init_db() -> None:
-    from app.models.file import FileRecord
+    from server.app.models.file import FileRecord
 
     Base.metadata.create_all(bind=engine)
 

@@ -7,9 +7,9 @@ from threading import Lock
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from app.sync.config import BASE_PATH
-from app.sync.db import init_db
-from app.sync.sync_engine import apply_actions, get_sync_plan
+from .config import BASE_PATH
+from .db import init_db
+from .sync_engine import apply_actions, get_sync_plan
 
 
 logger = logging.getLogger(__name__)

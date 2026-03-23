@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from app.api.routes import router
-from app.db.session import init_db
+from server.app.api.routes import router
+from server.app.db.session import init_db
 
 
 app = FastAPI(title="LAN Cloud Sync Server")

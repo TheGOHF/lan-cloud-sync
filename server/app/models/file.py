@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from server.app.db.base import Base
 
 
 class FileRecord(Base):
