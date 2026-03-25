@@ -28,3 +28,6 @@ logs/
 .DS_Store
 Thumbs.db
 client/app/sync/db.py
+server/data.db
+client/data/sync_state.db
+/scripts
