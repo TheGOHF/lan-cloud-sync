@@ -1,5 +1,8 @@
+# IDE
 .idea/
+.vscode/
 
+# Virtual environments
 .venv/
 venv/
 env/
@@ -7,27 +10,27 @@ ENV/
 client/venv/
 server/venv/
 
+# Python cache and tooling
 __pycache__/
 *.py[cod]
 *$py.class
-
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
+# Local runtime data
 *.db
 *.sqlite
 *.sqlite3
-
+*.db-journal
+*.sqlite-journal
 client/data/
 server/storage/
 
+# Logs
 *.log
 logs/
 
+# OS files
 .DS_Store
 Thumbs.db
-client/app/sync/db.py
-server/data.db
-client/data/sync_state.db
-/scripts
