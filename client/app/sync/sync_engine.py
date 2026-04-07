@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .config import BASE_PATH
+from .config import ClientConfig, get_client_config
 from .db import (
     LocalFileEntry,
     get_local_file,
@@ -30,21 +30,42 @@ class SyncAction:
     conflict_path: str | None = None
 
 
-def sync(local_base_path: Path = BASE_PATH, device_id: str = "unknown-device") -> list[SyncAction]:
-    init_db()
-    actions = get_sync_plan(local_base_path=local_base_path)
-    apply_actions(actions, local_base_path=local_base_path, device_id=device_id)
+def sync(
+    local_base_path: Path | None = None,
+    device_id: str | None = None,
+    *,
+    config: ClientConfig | None = None,
+) -> list[SyncAction]:
+    resolved_config = config or get_client_config()
+    resolved_base_path = local_base_path or resolved_config.base_path
+    resolved_device_id = device_id or resolved_config.device_id
+
+    init_db(resolved_config)
+    actions = get_sync_plan(local_base_path=resolved_base_path, config=resolved_config)
+    apply_actions(
+        actions,
+        local_base_path=resolved_base_path,
+        device_id=resolved_device_id,
+        config=resolved_config,
+    )
     return actions
 
 
-def get_sync_plan(local_base_path: Path = BASE_PATH) -> list[SyncAction]:
-    local_base_path.mkdir(parents=True, exist_ok=True)
+def get_sync_plan(
+    local_base_path: Path | None = None,
+    *,
+    config: ClientConfig | None = None,
+) -> list[SyncAction]:
+    resolved_config = config or get_client_config()
+    resolved_base_path = local_base_path or resolved_config.base_path
+
+    resolved_base_path.mkdir(parents=True, exist_ok=True)
 
     # TODO: Re-enable delta sync once the server supports updated_since filtering explicitly.
-    server_files = get_files()
+    server_files = get_files(config=resolved_config)
     server_index = {file_record.path: file_record for file_record in server_files}
-    local_index = scan_local_folder(local_base_path)
-    local_db_index = {entry.path: entry for entry in list_local_files()}
+    local_index = scan_local_folder(resolved_base_path)
+    local_db_index = {entry.path: entry for entry in list_local_files(resolved_config)}
 
     return build_sync_plan(
         local_index=local_index,
@@ -204,19 +225,39 @@ def build_sync_plan(
 def apply_actions(
     actions: list[SyncAction],
     *,
-    local_base_path: Path = BASE_PATH,
+    local_base_path: Path | None = None,
     device_id: str,
+    config: ClientConfig | None = None,
 ) -> None:
+    resolved_config = config or get_client_config()
+    resolved_base_path = local_base_path or resolved_config.base_path
     for action in actions:
-        apply_action(action, local_base_path=local_base_path, device_id=device_id)
+        apply_action(
+            action,
+            local_base_path=resolved_base_path,
+            device_id=device_id,
+            config=resolved_config,
+        )
 
 
-def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -> None:
+def apply_action(
+    action: SyncAction,
+    *,
+    local_base_path: Path,
+    device_id: str,
+    config: ClientConfig | None = None,
+) -> None:
+    resolved_config = config or get_client_config()
     local_path = local_base_path / Path(action.path)
 
     if action.action == "upload":
         logger.info("Upload %s (%s)", action.path, action.reason)
-        response = upload_file(local_path=local_path, remote_path=action.path, device_id=device_id)
+        response = upload_file(
+            local_path=local_path,
+            remote_path=action.path,
+            device_id=device_id,
+            config=resolved_config,
+        )
         upsert_local_file(
             path=action.path,
             file_hash=response.hash,
@@ -224,13 +265,14 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             last_synced=datetime.now(timezone.utc),
             conflict=False,
             deleted=False,
+            config=resolved_config,
         )
         return
 
     if action.action == "download":
         logger.info("Download %s (%s)", action.path, action.reason)
-        download_file(remote_path=action.path, local_path=local_path)
-        remote_record = _get_remote_record(action.path)
+        download_file(remote_path=action.path, local_path=local_path, config=resolved_config)
+        remote_record = _get_remote_record(action.path, config=resolved_config)
         upsert_local_file(
             path=action.path,
             file_hash=calculate_file_hash(local_path),
@@ -238,14 +280,15 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             last_synced=datetime.now(timezone.utc),
             conflict=False,
             deleted=False,
+            config=resolved_config,
         )
         return
 
     if action.action == "conflict_download":
         logger.warning("Conflict for %s, preserving local copy", action.path)
-        _save_conflict_copy(action=action, local_base_path=local_base_path)
-        download_file(remote_path=action.path, local_path=local_path)
-        remote_record = _get_remote_record(action.path)
+        _save_conflict_copy(action=action, local_base_path=local_base_path, config=resolved_config)
+        download_file(remote_path=action.path, local_path=local_path, config=resolved_config)
+        remote_record = _get_remote_record(action.path, config=resolved_config)
         upsert_local_file(
             path=action.path,
             file_hash=calculate_file_hash(local_path),
@@ -253,12 +296,13 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             last_synced=datetime.now(timezone.utc),
             conflict=False,
             deleted=False,
+            config=resolved_config,
         )
         return
 
     if action.action == "delete_remote":
         logger.info("Delete remote %s (%s)", action.path, action.reason)
-        response = delete_file(action.path, device_id=device_id)
+        response = delete_file(action.path, device_id=device_id, config=resolved_config)
         upsert_local_file(
             path=action.path,
             file_hash="",
@@ -266,6 +310,7 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             last_synced=datetime.now(timezone.utc),
             conflict=False,
             deleted=True,
+            config=resolved_config,
         )
         return
 
@@ -275,7 +320,7 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             local_path.unlink()
             _remove_empty_parent_directories(local_path.parent, local_base_path)
 
-        remote_record = _get_remote_record(action.path)
+        remote_record = _get_remote_record(action.path, config=resolved_config)
         upsert_local_file(
             path=action.path,
             file_hash="",
@@ -283,13 +328,14 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             last_synced=datetime.now(timezone.utc),
             conflict=False,
             deleted=True,
+            config=resolved_config,
         )
         return
 
     if action.action == "mark_local_deleted":
         logger.info("Mark local tombstone %s (%s)", action.path, action.reason)
-        local_record = get_local_file(action.path)
-        remote_record = _get_remote_record_or_none(action.path)
+        local_record = get_local_file(action.path, resolved_config)
+        remote_record = _get_remote_record_or_none(action.path, config=resolved_config)
         upsert_local_file(
             path=action.path,
             file_hash="",
@@ -297,6 +343,7 @@ def apply_action(action: SyncAction, *, local_base_path: Path, device_id: str) -
             last_synced=datetime.now(timezone.utc),
             conflict=False,
             deleted=True,
+            config=resolved_config,
         )
         return
 
@@ -315,7 +362,12 @@ def _build_conflict_relative_path(path: str) -> str:
     return path_obj.with_name(f"{path_obj.stem}_conflict{path_obj.suffix}").as_posix()
 
 
-def _save_conflict_copy(*, action: SyncAction, local_base_path: Path) -> None:
+def _save_conflict_copy(
+    *,
+    action: SyncAction,
+    local_base_path: Path,
+    config: ClientConfig | None = None,
+) -> None:
     if action.conflict_path is None:
         return
 
@@ -324,7 +376,7 @@ def _save_conflict_copy(*, action: SyncAction, local_base_path: Path) -> None:
     conflict_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, conflict_path)
 
-    source_record = get_local_file(action.path)
+    source_record = get_local_file(action.path, config)
     upsert_local_file(
         path=action.conflict_path,
         file_hash=calculate_file_hash(conflict_path),
@@ -332,20 +384,25 @@ def _save_conflict_copy(*, action: SyncAction, local_base_path: Path) -> None:
         last_synced=datetime.now(timezone.utc),
         conflict=True,
         deleted=False,
+        config=config,
     )
 
 
-def _get_remote_record(path: str) -> FileMetadataResponse:
-    for file_record in get_files():
+def _get_remote_record(path: str, *, config: ClientConfig | None = None) -> FileMetadataResponse:
+    for file_record in get_files(config=config):
         if file_record.path == path:
             return file_record
 
     raise FileNotFoundError(path)
 
 
-def _get_remote_record_or_none(path: str) -> FileMetadataResponse | None:
+def _get_remote_record_or_none(
+    path: str,
+    *,
+    config: ClientConfig | None = None,
+) -> FileMetadataResponse | None:
     try:
-        return _get_remote_record(path)
+        return _get_remote_record(path, config=config)
     except FileNotFoundError:
         return None
 

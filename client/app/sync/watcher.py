@@ -7,7 +7,7 @@ from threading import Event, Lock, Thread, Timer
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from .config import BASE_PATH, LOCAL_EVENT_DEBOUNCE_SECONDS, POLL_INTERVAL_SECONDS
+from .config import ClientConfig, get_client_config
 from .db import init_db
 from .sync_engine import apply_actions, get_sync_plan
 
@@ -22,9 +22,11 @@ class SyncEventHandler(FileSystemEventHandler):
         local_base_path: Path,
         device_id: str,
         sync_lock: Lock,
+        config: ClientConfig,
     ) -> None:
         self.local_base_path = local_base_path
         self.device_id = device_id
+        self.config = config
         self._lock = sync_lock
         self._timer_lock = Lock()
         self._debounce_timer: Timer | None = None
@@ -48,7 +50,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 self._debounce_timer.cancel()
 
             self._debounce_timer = Timer(
-                LOCAL_EVENT_DEBOUNCE_SECONDS,
+                self.config.local_event_debounce_seconds,
                 self._run_scheduled_sync,
             )
             self._debounce_timer.daemon = True
@@ -59,6 +61,7 @@ class SyncEventHandler(FileSystemEventHandler):
             local_base_path=self.local_base_path,
             device_id=self.device_id,
             sync_lock=self._lock,
+            config=self.config,
         )
 
         with self._timer_lock:
@@ -66,59 +69,80 @@ class SyncEventHandler(FileSystemEventHandler):
 
 
 def start_watcher(
-    local_base_path: Path = BASE_PATH,
-    device_id: str = "unknown-device",
+    local_base_path: Path | None = None,
+    device_id: str | None = None,
+    *,
+    config: ClientConfig | None = None,
 ) -> Observer:
-    init_db()
-    local_base_path.mkdir(parents=True, exist_ok=True)
+    resolved_config = config or get_client_config()
+    resolved_base_path = local_base_path or resolved_config.base_path
+    resolved_device_id = device_id or resolved_config.device_id
+
+    init_db(resolved_config)
+    resolved_base_path.mkdir(parents=True, exist_ok=True)
 
     observer = Observer()
     sync_lock = Lock()
     handler = SyncEventHandler(
-        local_base_path=local_base_path,
-        device_id=device_id,
+        local_base_path=resolved_base_path,
+        device_id=resolved_device_id,
         sync_lock=sync_lock,
+        config=resolved_config,
     )
-    observer.schedule(handler, str(local_base_path), recursive=True)
+    observer.schedule(handler, str(resolved_base_path), recursive=True)
     observer.start()
-    logger.info("Started watcher for %s", local_base_path)
+    logger.info("Started watcher for %s", resolved_base_path)
     return observer
 
 
 def watch_forever(
-    local_base_path: Path = BASE_PATH,
-    device_id: str = "unknown-device",
-    poll_interval: int = POLL_INTERVAL_SECONDS,
+    local_base_path: Path | None = None,
+    device_id: str | None = None,
+    poll_interval: int | None = None,
+    *,
+    config: ClientConfig | None = None,
 ) -> None:
-    init_db()
-    local_base_path.mkdir(parents=True, exist_ok=True)
+    resolved_config = config or get_client_config()
+    resolved_base_path = local_base_path or resolved_config.base_path
+    resolved_device_id = device_id or resolved_config.device_id
+    resolved_poll_interval = poll_interval or resolved_config.poll_interval_seconds
+
+    init_db(resolved_config)
+    resolved_base_path.mkdir(parents=True, exist_ok=True)
 
     sync_lock = Lock()
     stop_event = Event()
     observer = Observer()
     handler = SyncEventHandler(
-        local_base_path=local_base_path,
-        device_id=device_id,
+        local_base_path=resolved_base_path,
+        device_id=resolved_device_id,
         sync_lock=sync_lock,
+        config=resolved_config,
     )
-    observer.schedule(handler, str(local_base_path), recursive=True)
+    observer.schedule(handler, str(resolved_base_path), recursive=True)
     observer.start()
 
     poller = Thread(
         target=_poll_remote_changes,
         kwargs={
-            "local_base_path": local_base_path,
-            "device_id": device_id,
-            "poll_interval": poll_interval,
+            "local_base_path": resolved_base_path,
+            "device_id": resolved_device_id,
+            "poll_interval": resolved_poll_interval,
             "stop_event": stop_event,
             "sync_lock": sync_lock,
+            "config": resolved_config,
         },
         daemon=True,
     )
     poller.start()
 
-    logger.info("Watching %s with poll interval %ss", local_base_path, poll_interval)
-    run_sync_cycle(local_base_path=local_base_path, device_id=device_id, sync_lock=sync_lock)
+    logger.info("Watching %s with poll interval %ss", resolved_base_path, resolved_poll_interval)
+    run_sync_cycle(
+        local_base_path=resolved_base_path,
+        device_id=resolved_device_id,
+        sync_lock=sync_lock,
+        config=resolved_config,
+    )
 
     try:
         while observer.is_alive():
@@ -133,13 +157,19 @@ def watch_forever(
         poller.join(timeout=2)
 
 
-def run_sync_cycle(*, local_base_path: Path, device_id: str, sync_lock: Lock) -> None:
+def run_sync_cycle(
+    *,
+    local_base_path: Path,
+    device_id: str,
+    sync_lock: Lock,
+    config: ClientConfig | None = None,
+) -> None:
     if not sync_lock.acquire(blocking=False):
         logger.debug("Sync already running, skip duplicate trigger")
         return
 
     try:
-        actions = get_sync_plan(local_base_path=local_base_path)
+        actions = get_sync_plan(local_base_path=local_base_path, config=config)
         if not actions:
             logger.debug("No sync actions to apply")
             return
@@ -148,6 +178,7 @@ def run_sync_cycle(*, local_base_path: Path, device_id: str, sync_lock: Lock) ->
             actions,
             local_base_path=local_base_path,
             device_id=device_id,
+            config=config,
         )
     finally:
         sync_lock.release()
@@ -160,6 +191,7 @@ def _poll_remote_changes(
     poll_interval: int,
     stop_event: Event,
     sync_lock: Lock,
+    config: ClientConfig,
 ) -> None:
     while not stop_event.wait(poll_interval):
         try:
@@ -167,6 +199,7 @@ def _poll_remote_changes(
                 local_base_path=local_base_path,
                 device_id=device_id,
                 sync_lock=sync_lock,
+                config=config,
             )
         except Exception:
             logger.exception("Polling sync failed")

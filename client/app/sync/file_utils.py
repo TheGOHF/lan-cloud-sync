@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 from typing import TypedDict
 
-from .config import CHUNK_SIZE
+from .config import get_client_config
 
 
 class LocalFileState(TypedDict):
@@ -13,9 +13,10 @@ class LocalFileState(TypedDict):
     mtime: float
 
 
-def iter_file_chunks(file_path: Path, chunk_size: int = CHUNK_SIZE) -> Iterator[bytes]:
+def iter_file_chunks(file_path: Path, chunk_size: int | None = None) -> Iterator[bytes]:
+    resolved_chunk_size = chunk_size or get_client_config().chunk_size
     with file_path.open("rb") as file_obj:
-        while chunk := file_obj.read(chunk_size):
+        while chunk := file_obj.read(resolved_chunk_size):
             yield chunk
 
 

@@ -11,7 +11,7 @@ from requests import Response
 from requests import Session
 from requests.exceptions import RequestException
 
-from .config import CHUNK_SIZE, SERVER_URL
+from .config import ClientConfig, get_client_config
 from .file_utils import iter_file_chunks
 from shared.schemas import DeleteFileResponse, FileMetadataResponse, UploadFileResponse
 
@@ -20,17 +20,27 @@ class NetworkError(RuntimeError):
     pass
 
 
-def get_files(updated_since: datetime | None = None) -> list[FileMetadataResponse]:
+def get_files(
+    updated_since: datetime | None = None,
+    *,
+    config: ClientConfig | None = None,
+) -> list[FileMetadataResponse]:
     params: dict[str, str] | None = None
     if updated_since is not None:
         params = {"updated_since": updated_since.isoformat()}
 
-    response = _request("GET", "/files", params=params)
+    response = _request("GET", "/files", config=config, params=params)
     payload = response.json()
     return [FileMetadataResponse.model_validate(item) for item in payload]
 
 
-def upload_file(local_path: Path, remote_path: str, device_id: str) -> UploadFileResponse:
+def upload_file(
+    local_path: Path,
+    remote_path: str,
+    device_id: str,
+    *,
+    config: ClientConfig | None = None,
+) -> UploadFileResponse:
     boundary = f"lancloudsync-{uuid4().hex}"
     headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
     stream = MultipartUploadStream(
@@ -38,31 +48,40 @@ def upload_file(local_path: Path, remote_path: str, device_id: str) -> UploadFil
         remote_path=remote_path,
         device_id=device_id,
         boundary=boundary,
+        chunk_size=(config or get_client_config()).chunk_size,
     )
-    response = _request("POST", "/upload", data=stream, headers=headers)
+    response = _request("POST", "/upload", config=config, data=stream, headers=headers)
     return UploadFileResponse.model_validate(response.json())
 
 
-def download_file(remote_path: str, local_path: Path) -> None:
+def download_file(remote_path: str, local_path: Path, *, config: ClientConfig | None = None) -> None:
+    resolved_config = config or get_client_config()
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
     response = _request(
         "GET",
         "/download",
+        config=resolved_config,
         params={"path": remote_path},
         stream=True,
     )
 
     with local_path.open("wb") as file_obj:
-        for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+        for chunk in response.iter_content(chunk_size=resolved_config.chunk_size):
             if chunk:
                 file_obj.write(chunk)
 
 
-def delete_file(remote_path: str, device_id: str) -> DeleteFileResponse:
+def delete_file(
+    remote_path: str,
+    device_id: str,
+    *,
+    config: ClientConfig | None = None,
+) -> DeleteFileResponse:
     response = _request(
         "DELETE",
         "/files",
+        config=config,
         params={"path": remote_path, "device_id": device_id},
     )
     return DeleteFileResponse.model_validate(response.json())
@@ -71,9 +90,12 @@ def delete_file(remote_path: str, device_id: str) -> DeleteFileResponse:
 def _request(
     method: str,
     endpoint: str,
+    *,
+    config: ClientConfig | None = None,
     **kwargs: object,
 ) -> Response:
-    url = f"{SERVER_URL.rstrip('/')}{endpoint}"
+    resolved_config = config or get_client_config()
+    url = f"{resolved_config.server_url.rstrip('/')}{endpoint}"
 
     try:
         response = session.request(method, url, timeout=30, **kwargs)
@@ -101,11 +123,13 @@ class MultipartUploadStream:
         remote_path: str,
         device_id: str,
         boundary: str,
+        chunk_size: int,
     ) -> None:
         self.local_path = local_path
         self.remote_path = remote_path
         self.device_id = device_id
         self.boundary = boundary
+        self.chunk_size = chunk_size
         self._sha256 = hashlib.sha256()
 
     def __iter__(self) -> Iterator[bytes]:
@@ -113,7 +137,7 @@ class MultipartUploadStream:
         yield _form_field(self.boundary, "device_id", self.device_id)
         yield _file_field_header(self.boundary, self.local_path.name)
 
-        for chunk in iter_file_chunks(self.local_path, chunk_size=CHUNK_SIZE):
+        for chunk in iter_file_chunks(self.local_path, chunk_size=self.chunk_size):
             self._sha256.update(chunk)
             yield chunk
 
