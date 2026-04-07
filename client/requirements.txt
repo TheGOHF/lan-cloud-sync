@@ -2,3 +2,4 @@ requests
 sqlalchemy
 watchdog
 pydantic
+PySide6
