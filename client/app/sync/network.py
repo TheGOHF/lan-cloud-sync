@@ -41,6 +41,7 @@ def upload_file(
     *,
     config: ClientConfig | None = None,
 ) -> UploadFileResponse:
+    resolved_config = config or get_client_config()
     boundary = f"lancloudsync-{uuid4().hex}"
     headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
     stream = MultipartUploadStream(
@@ -48,9 +49,9 @@ def upload_file(
         remote_path=remote_path,
         device_id=device_id,
         boundary=boundary,
-        chunk_size=(config or get_client_config()).chunk_size,
+        chunk_size=resolved_config.chunk_size,
     )
-    response = _request("POST", "/upload", config=config, data=stream, headers=headers)
+    response = _request("POST", "/upload", config=resolved_config, data=stream, headers=headers)
     return UploadFileResponse.model_validate(response.json())
 
 

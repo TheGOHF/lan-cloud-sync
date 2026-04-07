@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 
 def main() -> None:
     base_config = ensure_client_config()
-    parser = build_parser(base_config)
+    parser = build_parser()
     args = parser.parse_args()
     config = resolve_cli_config(args, base_config)
     set_client_config(config)
@@ -27,7 +27,7 @@ def main() -> None:
     args.handler(args, config)
 
 
-def build_parser(config: ClientConfig) -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lan-cloud-sync")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -59,8 +59,6 @@ def build_parser(config: ClientConfig) -> argparse.ArgumentParser:
     watch_parser.add_argument("--base-path", type=Path)
     watch_parser.add_argument("--poll-interval", type=int)
     watch_parser.set_defaults(handler=handle_watch)
-
-    parser.set_defaults(default_config=config)
 
     return parser
 
@@ -95,7 +93,7 @@ def handle_list(_: argparse.Namespace, config: ClientConfig) -> None:
         print(f"{entry.path}\tv{entry.version}\t{entry.hash}\t{conflict_flag}")
 
 
-def handle_watch(args: argparse.Namespace, config: ClientConfig) -> None:
+def handle_watch(_: argparse.Namespace, config: ClientConfig) -> None:
     watch_forever(
         local_base_path=config.base_path,
         device_id=config.device_id,

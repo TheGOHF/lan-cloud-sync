@@ -14,7 +14,7 @@ class LocalFileState(TypedDict):
 
 
 def iter_file_chunks(file_path: Path, chunk_size: int | None = None) -> Iterator[bytes]:
-    resolved_chunk_size = chunk_size or get_client_config().chunk_size
+    resolved_chunk_size = chunk_size if chunk_size is not None else get_client_config().chunk_size
     with file_path.open("rb") as file_obj:
         while chunk := file_obj.read(resolved_chunk_size):
             yield chunk

@@ -8,9 +8,6 @@ from pathlib import Path
 from uuid import uuid4
 
 
-CLIENT_ROOT = Path(__file__).resolve().parents[2]
-
-
 def _default_client_config_dir() -> Path:
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
@@ -107,6 +104,7 @@ def set_client_config(config: ClientConfig) -> None:
     _runtime_config = config
 
 
+# Retained temporarily for backward compatibility with older import-based code paths.
 BASE_PATH = DEFAULT_CLIENT_CONFIG.base_path
 LOCAL_DB_PATH = DEFAULT_CLIENT_CONFIG.local_db_path
 SERVER_URL = DEFAULT_CLIENT_CONFIG.server_url

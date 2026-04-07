@@ -105,7 +105,9 @@ def watch_forever(
     resolved_config = config or get_client_config()
     resolved_base_path = local_base_path or resolved_config.base_path
     resolved_device_id = device_id or resolved_config.device_id
-    resolved_poll_interval = poll_interval or resolved_config.poll_interval_seconds
+    resolved_poll_interval = (
+        poll_interval if poll_interval is not None else resolved_config.poll_interval_seconds
+    )
 
     init_db(resolved_config)
     resolved_base_path.mkdir(parents=True, exist_ok=True)
