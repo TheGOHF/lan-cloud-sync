@@ -270,14 +270,14 @@ class MainWindow(QMainWindow):
 
     def refresh_file_list(self) -> None:
         try:
-            entries = list_local_files(self.config)
+            entries = [entry for entry in list_local_files(self.config) if not entry.deleted]
         except Exception as exc:
             self.append_log(f"Failed to load local file list: {exc}")
             return
 
         self.file_table.setRowCount(len(entries))
         for row_index, entry in enumerate(entries):
-            state = "conflict" if entry.conflict else "deleted" if entry.deleted else "ok"
+            state = "conflict" if entry.conflict else "ok"
             values = [
                 entry.path,
                 str(entry.version),

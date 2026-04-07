@@ -13,6 +13,12 @@ class LocalFileState(TypedDict):
     mtime: float
 
 
+def should_ignore_local_scan_file(file_path: Path) -> bool:
+    name = file_path.name
+    # Skip common local-only noise files so they do not create misleading sync activity.
+    return name.startswith("~$") or name.endswith(".lnk")
+
+
 def iter_file_chunks(file_path: Path, chunk_size: int | None = None) -> Iterator[bytes]:
     resolved_chunk_size = chunk_size if chunk_size is not None else get_client_config().chunk_size
     with file_path.open("rb") as file_obj:
@@ -37,6 +43,8 @@ def scan_local_folder(base_path: Path) -> dict[str, LocalFileState]:
 
     for file_path in base_path.rglob("*"):
         if not file_path.is_file():
+            continue
+        if should_ignore_local_scan_file(file_path):
             continue
 
         relative_path = file_path.relative_to(base_path).as_posix()
