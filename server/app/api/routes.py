@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -28,8 +29,11 @@ router = APIRouter()
 
 
 @router.get("/files", response_model=list[FileMetadataResponse])
-def get_files(db: Session = Depends(get_db)) -> list[FileMetadataResponse]:
-    file_records = list_files(db)
+def get_files(
+    updated_since: datetime | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[FileMetadataResponse]:
+    file_records = list_files(db, updated_since=updated_since)
     return [to_file_metadata_response(file_record) for file_record in file_records]
 
 

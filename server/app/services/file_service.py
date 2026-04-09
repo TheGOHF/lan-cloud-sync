@@ -50,11 +50,19 @@ def get_file_by_path(db: Session, *, path: str) -> Optional[FileRecord]:
     return db.query(FileRecord).filter(FileRecord.path == path).first()
 
 
-def list_files(db: Session) -> Sequence[FileRecord]:
+def list_files(
+    db: Session,
+    *,
+    updated_since: datetime | None = None,
+) -> Sequence[FileRecord]:
     _reconcile_storage_files(db)
     _reconcile_missing_storage_files(db)
-    # TODO: Add pagination and updated-since filters for large datasets and delta sync.
-    return db.query(FileRecord).order_by(FileRecord.path.asc()).all()
+
+    query = db.query(FileRecord)
+    if updated_since is not None:
+        query = query.filter(FileRecord.updated_at > updated_since)
+
+    return query.order_by(FileRecord.path.asc()).all()
 
 
 def soft_delete_file(
