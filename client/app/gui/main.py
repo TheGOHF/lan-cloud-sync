@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QGridLayout,
+    QGroupBox,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -98,18 +100,116 @@ class MainWindow(QMainWindow):
         self.start_watcher_button = QPushButton("Start watcher")
         self.stop_watcher_button = QPushButton("Stop watcher")
 
+        self._apply_styles()
         self._build_ui()
         self._bind_events()
         self.load_config_into_form()
         self.refresh_file_list()
         self.append_log("GUI ready")
 
+    def _apply_styles(self) -> None:
+        self.setStyleSheet(
+            """
+            QMainWindow {
+                background: #f4f6f8;
+            }
+            QWidget {
+                color: #1f2933;
+                font-size: 13px;
+            }
+            QGroupBox {
+                background: #ffffff;
+                border: 1px solid #d8dee4;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding: 14px 14px 12px 14px;
+                font-weight: 600;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 6px;
+                color: #334e68;
+            }
+            QLineEdit, QPlainTextEdit, QTableWidget {
+                background: #ffffff;
+                border: 1px solid #cbd2d9;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QPushButton {
+                background: #eef2f6;
+                border: 1px solid #cbd2d9;
+                border-radius: 6px;
+                padding: 8px 14px;
+                min-height: 18px;
+            }
+            QPushButton:hover {
+                background: #e5ebf1;
+            }
+            QPushButton:disabled {
+                color: #7b8794;
+                background: #f1f4f7;
+            }
+            QPushButton#primaryButton {
+                background: #2f6fed;
+                color: white;
+                border: 1px solid #2459be;
+                font-weight: 600;
+            }
+            QPushButton#primaryButton:hover {
+                background: #275fcc;
+            }
+            QLabel#statusLabel {
+                background: #edf4ff;
+                border: 1px solid #bfd2ff;
+                border-radius: 8px;
+                padding: 10px 12px;
+                font-size: 13px;
+                font-weight: 600;
+                color: #1d3557;
+            }
+            QLabel#statusLabel[statusState="success"] {
+                background: #eefbf3;
+                border: 1px solid #b8e3c5;
+                color: #1f5132;
+            }
+            QLabel#statusLabel[statusState="failed"] {
+                background: #fff3f1;
+                border: 1px solid #efc4bd;
+                color: #9b2c2c;
+            }
+            QHeaderView::section {
+                background: #eef2f6;
+                border: none;
+                border-bottom: 1px solid #cbd2d9;
+                padding: 8px;
+                font-weight: 600;
+            }
+            QTableWidget {
+                gridline-color: #e6eaef;
+                selection-background-color: #dce8ff;
+                selection-color: #102a43;
+            }
+            QPlainTextEdit {
+                background: #fbfcfd;
+            }
+            """
+        )
+
     def _build_ui(self) -> None:
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
         root_layout = QVBoxLayout(central_widget)
-        settings_layout = QGridLayout()
+        root_layout.setContentsMargins(18, 18, 18, 18)
+        root_layout.setSpacing(14)
+
+        settings_group = QGroupBox("Connection Settings")
+        settings_layout = QGridLayout(settings_group)
+        settings_layout.setContentsMargins(12, 14, 12, 12)
+        settings_layout.setHorizontalSpacing(10)
+        settings_layout.setVerticalSpacing(10)
 
         settings_layout.addWidget(QLabel("Server URL"), 0, 0)
         settings_layout.addWidget(self.server_url_input, 0, 1, 1, 2)
@@ -123,28 +223,61 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(QLabel("Device ID"), 2, 0)
         settings_layout.addWidget(self.device_id_input, 2, 1, 1, 2)
 
+        controls_group = QGroupBox("Synchronization Controls")
         button_row = QHBoxLayout()
-        button_row.addWidget(self.save_button)
+        button_row.setContentsMargins(12, 14, 12, 12)
+        button_row.setSpacing(10)
+        self.sync_button.setObjectName("primaryButton")
         button_row.addWidget(self.sync_button)
+        button_row.addWidget(self.save_button)
         button_row.addWidget(self.start_watcher_button)
         button_row.addWidget(self.stop_watcher_button)
         button_row.addStretch(1)
+        controls_group.setLayout(button_row)
 
-        self.file_table.setHorizontalHeaderLabels(["Path", "Version", "Hash", "State"])
-        self.file_table.horizontalHeader().setStretchLastSection(True)
+        status_group = QGroupBox("Status")
+        status_layout = QVBoxLayout(status_group)
+        status_layout.setContentsMargins(12, 14, 12, 12)
+        self.status_label.setObjectName("statusLabel")
+        self.status_label.setWordWrap(True)
+        status_layout.addWidget(self.status_label)
+
+        files_group = QGroupBox("Files")
+        files_layout = QVBoxLayout(files_group)
+        files_layout.setContentsMargins(12, 14, 12, 12)
+        self.file_table.setHorizontalHeaderLabels(["Relative Path", "Version", "SHA-256", "State"])
         self.file_table.verticalHeader().setVisible(False)
         self.file_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.file_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.file_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.file_table.setAlternatingRowColors(True)
+        self.file_table.setShowGrid(False)
+        self.file_table.setWordWrap(False)
+        self.file_table.setCornerButtonEnabled(False)
+        header = self.file_table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        files_layout.addWidget(self.file_table)
 
+        log_group = QGroupBox("Log")
+        log_layout = QVBoxLayout(log_group)
+        log_layout.setContentsMargins(12, 14, 12, 12)
         self.log_output.setReadOnly(True)
+        self.log_output.setPlaceholderText("Recent sync events and errors will appear here.")
+        log_layout.addWidget(self.log_output)
 
-        root_layout.addLayout(settings_layout)
-        root_layout.addLayout(button_row)
-        root_layout.addWidget(self.status_label)
-        root_layout.addWidget(QLabel("Local sync database"))
-        root_layout.addWidget(self.file_table, stretch=2)
-        root_layout.addWidget(QLabel("Events and errors"))
-        root_layout.addWidget(self.log_output, stretch=1)
+        top_row = QHBoxLayout()
+        top_row.setSpacing(14)
+        top_row.addWidget(settings_group, stretch=3)
+        top_row.addWidget(status_group, stretch=2)
+
+        root_layout.addLayout(top_row)
+        root_layout.addWidget(controls_group)
+        root_layout.addWidget(files_group, stretch=3)
+        root_layout.addWidget(log_group, stretch=2)
 
         self._update_watcher_controls()
 
@@ -196,7 +329,6 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._set_sync_failed(str(exc))
             self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
-            QMessageBox.critical(self, "Save settings", str(exc))
             return
 
         self.append_log("Settings saved")
@@ -216,7 +348,6 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._set_sync_failed(str(exc))
             self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
-            QMessageBox.critical(self, "Sync now", str(exc))
             return
 
         self.sync_button.setEnabled(False)
@@ -255,7 +386,6 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._set_sync_failed(str(exc))
             self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
-            QMessageBox.critical(self, "Start watcher", str(exc))
             self._update_watcher_controls()
             return
 
@@ -272,7 +402,6 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._set_sync_failed(str(exc))
             self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
-            QMessageBox.critical(self, "Stop watcher", str(exc))
             return
 
         self.refresh_file_list()
@@ -297,9 +426,13 @@ class MainWindow(QMainWindow):
             for column_index, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if column_index in (1, 3):
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                else:
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                    )
                 self.file_table.setItem(row_index, column_index, item)
-
-        self.file_table.resizeColumnsToContents()
 
     def emit_watcher_event(self, message: str) -> None:
         self.event_bridge.message.emit(message)
@@ -336,6 +469,9 @@ class MainWindow(QMainWindow):
         self.status_label.setText(
             f"Watcher: {'running' if watcher_running else 'stopped'} | {last_sync_text}"
         )
+        self.status_label.setProperty("statusState", self.last_sync_status)
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
         self.start_watcher_button.setEnabled(not watcher_running)
         self.stop_watcher_button.setEnabled(watcher_running)
 
@@ -353,7 +489,6 @@ class MainWindow(QMainWindow):
         short_message = self._short_error_message(error_message)
         self._set_sync_failed(short_message)
         self.append_log(f"[ERROR] {short_message}")
-        QMessageBox.critical(self, "Sync failed", error_message)
         self.sync_button.setEnabled(True)
 
     def _cleanup_sync_thread(self) -> None:

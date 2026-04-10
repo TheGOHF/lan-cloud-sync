@@ -79,7 +79,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 event_sink=self.event_sink,
             )
         except Exception:
-            pass
+            logger.exception("Scheduled sync failed")
 
         with self._timer_lock:
             self._debounce_timer = None
