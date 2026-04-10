@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 import sys
 
@@ -80,13 +81,16 @@ class MainWindow(QMainWindow):
         self.watcher_service: SyncWatcherService | None = None
         self.sync_thread: QThread | None = None
         self.sync_worker: SyncWorker | None = None
+        self.last_sync_status: str = "idle"
+        self.last_sync_time: datetime | None = None
+        self.last_error_message: str | None = None
         self.event_bridge = GuiEventBridge()
-        self.event_bridge.message.connect(self.append_log)
+        self.event_bridge.message.connect(self.handle_watcher_event)
 
         self.server_url_input = QLineEdit()
         self.sync_folder_input = QLineEdit()
         self.device_id_input = QLineEdit()
-        self.status_label = QLabel("Watcher: stopped")
+        self.status_label = QLabel()
         self.file_table = QTableWidget(0, 4)
         self.log_output = QPlainTextEdit()
         self.save_button = QPushButton("Save settings")
@@ -190,7 +194,8 @@ class MainWindow(QMainWindow):
             init_db(new_config)
             self.config = new_config
         except Exception as exc:
-            self.append_log(f"Failed to save settings: {exc}")
+            self._set_sync_failed(str(exc))
+            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
             QMessageBox.critical(self, "Save settings", str(exc))
             return
 
@@ -209,12 +214,15 @@ class MainWindow(QMainWindow):
             set_client_config(self.config)
             init_db(self.config)
         except Exception as exc:
-            self.append_log(f"Invalid settings: {exc}")
+            self._set_sync_failed(str(exc))
+            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
             QMessageBox.critical(self, "Sync now", str(exc))
             return
 
         self.sync_button.setEnabled(False)
+        self.last_error_message = None
         self.append_log("Starting sync")
+        self._update_watcher_controls()
 
         self.sync_thread = QThread(self)
         self.sync_worker = SyncWorker(self.config)
@@ -245,7 +253,8 @@ class MainWindow(QMainWindow):
             )
             self.watcher_service.start()
         except Exception as exc:
-            self.append_log(f"Failed to start watcher: {exc}")
+            self._set_sync_failed(str(exc))
+            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
             QMessageBox.critical(self, "Start watcher", str(exc))
             self._update_watcher_controls()
             return
@@ -261,7 +270,8 @@ class MainWindow(QMainWindow):
         try:
             self.watcher_service.stop()
         except Exception as exc:
-            self.append_log(f"Failed to stop watcher: {exc}")
+            self._set_sync_failed(str(exc))
+            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
             QMessageBox.critical(self, "Stop watcher", str(exc))
             return
 
@@ -272,7 +282,7 @@ class MainWindow(QMainWindow):
         try:
             entries = [entry for entry in list_local_files(self.config) if not entry.deleted]
         except Exception as exc:
-            self.append_log(f"Failed to load local file list: {exc}")
+            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
             return
 
         self.file_table.setRowCount(len(entries))
@@ -294,6 +304,22 @@ class MainWindow(QMainWindow):
     def emit_watcher_event(self, message: str) -> None:
         self.event_bridge.message.emit(message)
 
+    def handle_watcher_event(self, message: str) -> None:
+        if message == "Sync cycle completed":
+            self._set_sync_success()
+            self.append_log("[OK] Synced successfully")
+            self.refresh_file_list()
+            return
+
+        if message.startswith("Sync cycle failed:"):
+            error_message = self._short_error_message(message.partition(":")[2].strip())
+            self._set_sync_failed(error_message)
+            self.append_log(f"[ERROR] {error_message}")
+            self.refresh_file_list()
+            return
+
+        self.append_log(message)
+
     def append_log(self, message: str) -> None:
         self.log_output.appendPlainText(message)
         self.log_output.verticalScrollBar().setValue(self.log_output.verticalScrollBar().maximum())
@@ -301,22 +327,32 @@ class MainWindow(QMainWindow):
 
     def _update_watcher_controls(self) -> None:
         watcher_running = self.watcher_service is not None and self.watcher_service.is_running
-        self.status_label.setText(f"Watcher: {'running' if watcher_running else 'stopped'}")
+        last_sync_text = f"Last sync: {self.last_sync_status}"
+        if self.last_sync_time is not None:
+            last_sync_text = (
+                f"{last_sync_text} at {self.last_sync_time.astimezone().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
+        self.status_label.setText(
+            f"Watcher: {'running' if watcher_running else 'stopped'} | {last_sync_text}"
+        )
         self.start_watcher_button.setEnabled(not watcher_running)
         self.stop_watcher_button.setEnabled(watcher_running)
 
     def _handle_sync_finished(self, rendered_actions: list[str]) -> None:
+        self._set_sync_success()
         if rendered_actions:
             for line in rendered_actions:
                 self.append_log(f"Sync: {line}")
-        else:
-            self.append_log("Sync complete: no actions")
 
+        self.append_log("[OK] Synced successfully")
         self.refresh_file_list()
         self.sync_button.setEnabled(True)
 
     def _handle_sync_failed(self, error_message: str) -> None:
-        self.append_log(f"Sync failed: {error_message}")
+        short_message = self._short_error_message(error_message)
+        self._set_sync_failed(short_message)
+        self.append_log(f"[ERROR] {short_message}")
         QMessageBox.critical(self, "Sync failed", error_message)
         self.sync_button.setEnabled(True)
 
@@ -338,6 +374,21 @@ class MainWindow(QMainWindow):
             self.watcher_service.stop()
 
         event.accept()
+
+    def _set_sync_success(self) -> None:
+        self.last_sync_status = "success"
+        self.last_sync_time = datetime.now().astimezone()
+        self.last_error_message = None
+        self._update_watcher_controls()
+
+    def _set_sync_failed(self, error_message: str) -> None:
+        self.last_sync_status = "failed"
+        self.last_sync_time = datetime.now().astimezone()
+        self.last_error_message = error_message
+        self._update_watcher_controls()
+
+    def _short_error_message(self, message: str) -> str:
+        return " ".join(message.splitlines()).strip() or "Unknown error"
 
 
 def main() -> int:

@@ -70,13 +70,16 @@ class SyncEventHandler(FileSystemEventHandler):
             self._debounce_timer.start()
 
     def _run_scheduled_sync(self) -> None:
-        run_sync_cycle(
-            local_base_path=self.local_base_path,
-            device_id=self.device_id,
-            sync_lock=self._lock,
-            config=self.config,
-            event_sink=self.event_sink,
-        )
+        try:
+            run_sync_cycle(
+                local_base_path=self.local_base_path,
+                device_id=self.device_id,
+                sync_lock=self._lock,
+                config=self.config,
+                event_sink=self.event_sink,
+            )
+        except Exception:
+            pass
 
         with self._timer_lock:
             self._debounce_timer = None
@@ -280,6 +283,7 @@ def run_sync_cycle(
         actions = get_sync_plan(local_base_path=local_base_path, config=config)
         if not actions:
             logger.debug("No sync actions to apply")
+            _emit_event(event_sink, logging.INFO, "Sync cycle completed")
             return
 
         apply_actions(
@@ -288,7 +292,10 @@ def run_sync_cycle(
             device_id=device_id,
             config=config,
         )
-        _emit_event(event_sink, logging.DEBUG, "Applied %s sync action(s)", len(actions))
+        _emit_event(event_sink, logging.INFO, "Sync cycle completed")
+    except Exception as exc:
+        _emit_event(event_sink, logging.ERROR, "Sync cycle failed: %s", exc)
+        raise
     finally:
         sync_lock.release()
 
@@ -314,8 +321,6 @@ def _poll_remote_changes(
             )
         except Exception:
             logger.exception("Polling sync failed")
-            if event_sink is not None:
-                event_sink("Polling sync failed")
 
 
 def _emit_event(
