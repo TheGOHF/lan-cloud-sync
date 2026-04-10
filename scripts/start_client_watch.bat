@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+rem Legacy path: starts the old CLI watcher directly. For coursework/demo use, prefer start_client_gui.bat.
+
 set "ROOT_DIR=%~dp0.."
 set "PYTHON_EXE=%ROOT_DIR%\client\venv\Scripts\python.exe"
 set "LOG_DIR=%ROOT_DIR%\logs"

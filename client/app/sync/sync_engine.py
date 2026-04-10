@@ -10,7 +10,6 @@ from .config import ClientConfig, get_client_config
 from .db import (
     LocalFileEntry,
     get_local_file,
-    get_latest_sync_time,
     init_db,
     list_local_files,
     upsert_local_file,
@@ -62,8 +61,9 @@ def get_sync_plan(
 
     resolved_base_path.mkdir(parents=True, exist_ok=True)
 
-    updated_since = get_latest_sync_time(resolved_config)
-    server_files = get_files(updated_since=updated_since, config=resolved_config)
+    # Planning currently needs a complete remote snapshot so missing-local and delete propagation
+    # decisions remain correct across the full path set.
+    server_files = get_files(config=resolved_config)
     server_index = {file_record.path: file_record for file_record in server_files}
     local_index = scan_local_folder(resolved_base_path)
     local_db_index = {entry.path: entry for entry in list_local_files(resolved_config)}

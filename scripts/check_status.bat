@@ -30,6 +30,10 @@ tasklist /FI "IMAGENAME eq python.exe"
 tasklist /FI "IMAGENAME eq pythonw.exe"
 echo.
 
+echo [Client GUI Process]
+powershell -NoProfile -Command "$targets = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^pythonw?\.exe$' -and $_.CommandLine -like '*client.app.gui.main*' }; if ($targets) { $targets | Select-Object ProcessId,Name,CommandLine | Format-Table -Wrap -AutoSize } else { Write-Host 'Client GUI process not found.' }"
+echo.
+
 echo [Server Health Check]
 powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; try { $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/files -TimeoutSec 5; Write-Host ('Status: ' + [int]$r.StatusCode); Write-Host ('Body: ' + $r.Content) } catch { Write-Host $_.Exception.Message }"
 echo.
@@ -46,7 +50,13 @@ echo [Recent Client Log]
 if exist "%CLIENT_LOG%" (
     powershell -NoProfile -Command "Get-Content '%CLIENT_LOG%' -Tail 20"
 ) else (
-    echo No client log found at "%CLIENT_LOG%"
+    echo No legacy CLI watcher log found at "%CLIENT_LOG%"
 )
+echo.
+
+echo [Client Notes]
+echo The GUI is now the primary client entry point for demo use.
+echo Watcher state is managed inside the GUI, so this script can confirm the GUI process
+echo but cannot directly show internal watcher start/stop state unless the GUI is open.
 
 exit /b 0
