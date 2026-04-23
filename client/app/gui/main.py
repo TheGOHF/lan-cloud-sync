@@ -73,7 +73,7 @@ class GuiEventBridge(QObject):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("LAN Cloud Sync")
+        self.setWindowTitle("LAN Cloud Sync — синхронизация файлов")
         self.resize(980, 700)
 
         self.config = ensure_client_config()
@@ -95,17 +95,17 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel()
         self.file_table = QTableWidget(0, 4)
         self.log_output = QPlainTextEdit()
-        self.save_button = QPushButton("Save settings")
-        self.sync_button = QPushButton("Sync now")
-        self.start_watcher_button = QPushButton("Start watcher")
-        self.stop_watcher_button = QPushButton("Stop watcher")
+        self.save_button = QPushButton("Сохранить настройки")
+        self.sync_button = QPushButton("Синхронизировать")
+        self.start_watcher_button = QPushButton("Запустить наблюдение")
+        self.stop_watcher_button = QPushButton("Остановить наблюдение")
 
         self._apply_styles()
         self._build_ui()
         self._bind_events()
         self.load_config_into_form()
         self.refresh_file_list()
-        self.append_log("GUI ready")
+        self.append_log("Интерфейс готов")
 
     def _apply_styles(self) -> None:
         self.setStyleSheet(
@@ -205,25 +205,25 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(18, 18, 18, 18)
         root_layout.setSpacing(14)
 
-        settings_group = QGroupBox("Connection Settings")
+        settings_group = QGroupBox("Параметры подключения")
         settings_layout = QGridLayout(settings_group)
         settings_layout.setContentsMargins(12, 14, 12, 12)
         settings_layout.setHorizontalSpacing(10)
         settings_layout.setVerticalSpacing(10)
 
-        settings_layout.addWidget(QLabel("Server URL"), 0, 0)
+        settings_layout.addWidget(QLabel("Адрес сервера"), 0, 0)
         settings_layout.addWidget(self.server_url_input, 0, 1, 1, 2)
 
-        settings_layout.addWidget(QLabel("Sync folder"), 1, 0)
+        settings_layout.addWidget(QLabel("Папка синхронизации"), 1, 0)
         settings_layout.addWidget(self.sync_folder_input, 1, 1)
-        browse_button = QPushButton("Browse...")
+        browse_button = QPushButton("Выбрать...")
         browse_button.clicked.connect(self.choose_sync_folder)
         settings_layout.addWidget(browse_button, 1, 2)
 
-        settings_layout.addWidget(QLabel("Device ID"), 2, 0)
+        settings_layout.addWidget(QLabel("ID устройства"), 2, 0)
         settings_layout.addWidget(self.device_id_input, 2, 1, 1, 2)
 
-        controls_group = QGroupBox("Synchronization Controls")
+        controls_group = QGroupBox("Управление синхронизацией")
         button_row = QHBoxLayout()
         button_row.setContentsMargins(12, 14, 12, 12)
         button_row.setSpacing(10)
@@ -235,17 +235,17 @@ class MainWindow(QMainWindow):
         button_row.addStretch(1)
         controls_group.setLayout(button_row)
 
-        status_group = QGroupBox("Status")
+        status_group = QGroupBox("Состояние")
         status_layout = QVBoxLayout(status_group)
         status_layout.setContentsMargins(12, 14, 12, 12)
         self.status_label.setObjectName("statusLabel")
         self.status_label.setWordWrap(True)
         status_layout.addWidget(self.status_label)
 
-        files_group = QGroupBox("Files")
+        files_group = QGroupBox("Файлы")
         files_layout = QVBoxLayout(files_group)
         files_layout.setContentsMargins(12, 14, 12, 12)
-        self.file_table.setHorizontalHeaderLabels(["Relative Path", "Version", "SHA-256", "State"])
+        self.file_table.setHorizontalHeaderLabels(["Относительный путь", "Версия", "SHA-256", "Состояние"])
         self.file_table.verticalHeader().setVisible(False)
         self.file_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.file_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -262,11 +262,11 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         files_layout.addWidget(self.file_table)
 
-        log_group = QGroupBox("Log")
+        log_group = QGroupBox("Журнал")
         log_layout = QVBoxLayout(log_group)
         log_layout.setContentsMargins(12, 14, 12, 12)
         self.log_output.setReadOnly(True)
-        self.log_output.setPlaceholderText("Recent sync events and errors will appear here.")
+        self.log_output.setPlaceholderText("Здесь будут отображаться последние события и ошибки синхронизации.")
         log_layout.addWidget(self.log_output)
 
         top_row = QHBoxLayout()
@@ -298,11 +298,11 @@ class MainWindow(QMainWindow):
         device_id = self.device_id_input.text().strip()
 
         if not server_url:
-            raise ValueError("Server URL is required.")
+            raise ValueError("Укажите адрес сервера.")
         if not sync_folder:
-            raise ValueError("Sync folder is required.")
+            raise ValueError("Укажите папку синхронизации.")
         if not device_id:
-            raise ValueError("Device ID is required.")
+            raise ValueError("Укажите ID устройства.")
 
         return self.config.with_overrides(
             server_url=server_url,
@@ -313,7 +313,7 @@ class MainWindow(QMainWindow):
     def choose_sync_folder(self) -> None:
         selected = QFileDialog.getExistingDirectory(
             self,
-            "Choose Sync Folder",
+            "Выберите папку синхронизации",
             self.sync_folder_input.text() or str(self.config.base_path),
         )
         if selected:
@@ -328,17 +328,17 @@ class MainWindow(QMainWindow):
             self.config = new_config
         except Exception as exc:
             self._set_sync_failed(str(exc))
-            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
+            self.append_log(f"[ОШИБКА] {self._short_error_message(str(exc))}")
             return
 
-        self.append_log("Settings saved")
+        self.append_log("Настройки сохранены")
         if self.watcher_service is not None and self.watcher_service.is_running:
-            self.append_log("Watcher is still using the previous settings until restarted")
+            self.append_log("Наблюдение продолжает использовать прежние настройки до перезапуска")
         self.refresh_file_list()
 
     def run_sync_now(self) -> None:
         if self.sync_thread is not None and self.sync_thread.isRunning():
-            self.append_log("Sync already running")
+            self.append_log("Синхронизация уже выполняется")
             return
 
         try:
@@ -347,12 +347,12 @@ class MainWindow(QMainWindow):
             init_db(self.config)
         except Exception as exc:
             self._set_sync_failed(str(exc))
-            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
+            self.append_log(f"[ОШИБКА] {self._short_error_message(str(exc))}")
             return
 
         self.sync_button.setEnabled(False)
         self.last_error_message = None
-        self.append_log("Starting sync")
+        self.append_log("Запуск синхронизации")
         self._update_watcher_controls()
 
         self.sync_thread = QThread(self)
@@ -368,7 +368,7 @@ class MainWindow(QMainWindow):
 
     def start_watcher(self) -> None:
         if self.watcher_service is not None and self.watcher_service.is_running:
-            self.append_log("Watcher already running")
+            self.append_log("Наблюдение уже запущено")
             self._update_watcher_controls()
             return
 
@@ -385,7 +385,7 @@ class MainWindow(QMainWindow):
             self.watcher_service.start()
         except Exception as exc:
             self._set_sync_failed(str(exc))
-            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
+            self.append_log(f"[ОШИБКА] {self._short_error_message(str(exc))}")
             self._update_watcher_controls()
             return
 
@@ -401,7 +401,7 @@ class MainWindow(QMainWindow):
             self.watcher_service.stop()
         except Exception as exc:
             self._set_sync_failed(str(exc))
-            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
+            self.append_log(f"[ОШИБКА] {self._short_error_message(str(exc))}")
             return
 
         self.refresh_file_list()
@@ -411,12 +411,12 @@ class MainWindow(QMainWindow):
         try:
             entries = [entry for entry in list_local_files(self.config) if not entry.deleted]
         except Exception as exc:
-            self.append_log(f"[ERROR] {self._short_error_message(str(exc))}")
+            self.append_log(f"[ОШИБКА] {self._short_error_message(str(exc))}")
             return
 
         self.file_table.setRowCount(len(entries))
         for row_index, entry in enumerate(entries):
-            state = "conflict" if entry.conflict else "ok"
+            state = "конфликт" if entry.conflict else "норма"
             values = [
                 entry.path,
                 str(entry.version),
@@ -440,18 +440,18 @@ class MainWindow(QMainWindow):
     def handle_watcher_event(self, message: str) -> None:
         if message == "Sync cycle completed":
             self._set_sync_success()
-            self.append_log("[OK] Synced successfully")
+            self.append_log("[OK] Синхронизация выполнена успешно")
             self.refresh_file_list()
             return
 
         if message.startswith("Sync cycle failed:"):
             error_message = self._short_error_message(message.partition(":")[2].strip())
             self._set_sync_failed(error_message)
-            self.append_log(f"[ERROR] {error_message}")
+            self.append_log(f"[ОШИБКА] {error_message}")
             self.refresh_file_list()
             return
 
-        self.append_log(message)
+        self.append_log(self._translate_watcher_message(message))
 
     def append_log(self, message: str) -> None:
         self.log_output.appendPlainText(message)
@@ -460,14 +460,14 @@ class MainWindow(QMainWindow):
 
     def _update_watcher_controls(self) -> None:
         watcher_running = self.watcher_service is not None and self.watcher_service.is_running
-        last_sync_text = f"Last sync: {self.last_sync_status}"
+        last_sync_text = f"Последняя синхронизация: {self._localized_sync_status()}"
         if self.last_sync_time is not None:
             last_sync_text = (
-                f"{last_sync_text} at {self.last_sync_time.astimezone().strftime('%Y-%m-%d %H:%M:%S')}"
+                f"{last_sync_text} в {self.last_sync_time.astimezone().strftime('%Y-%m-%d %H:%M:%S')}"
             )
 
         self.status_label.setText(
-            f"Watcher: {'running' if watcher_running else 'stopped'} | {last_sync_text}"
+            f"Наблюдение: {'запущено' if watcher_running else 'остановлено'} | {last_sync_text}"
         )
         self.status_label.setProperty("statusState", self.last_sync_status)
         self.status_label.style().unpolish(self.status_label)
@@ -479,16 +479,16 @@ class MainWindow(QMainWindow):
         self._set_sync_success()
         if rendered_actions:
             for line in rendered_actions:
-                self.append_log(f"Sync: {line}")
+                self.append_log(f"Действие синхронизации: {line}")
 
-        self.append_log("[OK] Synced successfully")
+        self.append_log("[OK] Синхронизация выполнена успешно")
         self.refresh_file_list()
         self.sync_button.setEnabled(True)
 
     def _handle_sync_failed(self, error_message: str) -> None:
         short_message = self._short_error_message(error_message)
         self._set_sync_failed(short_message)
-        self.append_log(f"[ERROR] {short_message}")
+        self.append_log(f"[ОШИБКА] {short_message}")
         self.sync_button.setEnabled(True)
 
     def _cleanup_sync_thread(self) -> None:
@@ -501,7 +501,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if self.sync_thread is not None and self.sync_thread.isRunning():
-            QMessageBox.information(self, "LAN Cloud Sync", "Sync is still running.")
+            QMessageBox.information(self, "LAN Cloud Sync", "Синхронизация еще выполняется.")
             event.ignore()
             return
 
@@ -523,7 +523,23 @@ class MainWindow(QMainWindow):
         self._update_watcher_controls()
 
     def _short_error_message(self, message: str) -> str:
-        return " ".join(message.splitlines()).strip() or "Unknown error"
+        return " ".join(message.splitlines()).strip() or "Неизвестная ошибка"
+
+    def _localized_sync_status(self) -> str:
+        if self.last_sync_status == "success":
+            return "успешно"
+        if self.last_sync_status == "failed":
+            return "ошибка"
+        return "нет данных"
+
+    def _translate_watcher_message(self, message: str) -> str:
+        if message == "Watcher stopped":
+            return "Наблюдение остановлено"
+        if message.startswith("Watching "):
+            return "Наблюдение запущено"
+        if message.startswith("Watcher event:"):
+            return f"Событие файловой системы: {message.removeprefix('Watcher event:').strip()}"
+        return message
 
 
 def main() -> int:
