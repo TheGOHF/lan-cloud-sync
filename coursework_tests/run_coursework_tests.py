@@ -59,7 +59,7 @@ def main() -> int:
 
 def run_tp_1_1() -> CourseworkTestCase:
     return run_build_sync_plan_case(
-        case_id="TP-1.1",
+        case_id="TП-1.1",
         test_requirement="ТТ-1.1: скачивание файла, который существует только на удаленной стороне",
         local_index={},
         server_index={
@@ -77,7 +77,7 @@ def run_tp_1_1() -> CourseworkTestCase:
 
 def run_tp_1_2() -> CourseworkTestCase:
     return run_build_sync_plan_case(
-        case_id="TP-1.2",
+        case_id="TП-1.2",
         test_requirement="ТТ-1.2: загрузка файла, который существует только локально",
         local_index={"a.txt": {"hash": "local-hash-a", "mtime": 100.0}},
         server_index={},
@@ -88,7 +88,7 @@ def run_tp_1_2() -> CourseworkTestCase:
 
 def run_tp_1_3() -> CourseworkTestCase:
     return run_build_sync_plan_case(
-        case_id="TP-1.3",
+        case_id="TП-1.3",
         test_requirement="ТТ-1.3: удаление удаленного файла, если он был синхронизирован ранее, есть на сервере, но отсутствует локально",
         local_index={},
         server_index={
@@ -113,7 +113,7 @@ def run_tp_1_3() -> CourseworkTestCase:
 
 def run_tp_1_4() -> CourseworkTestCase:
     return run_build_sync_plan_case(
-        case_id="TP-1.4",
+        case_id="TП-1.4",
         test_requirement="ТТ-1.4: удаление локального файла, если удаленное состояние помечено как tombstone",
         local_index={"a.txt": {"hash": "local-hash-a", "mtime": 100.0}},
         server_index={
@@ -138,7 +138,7 @@ def run_tp_1_4() -> CourseworkTestCase:
 
 def run_tp_2_1() -> CourseworkTestCase:
     return run_scan_case(
-        case_id="TP-2.1",
+        case_id="TП-2.1",
         test_requirement='ТТ-2.1: игнорирование временных файлов Microsoft Word с префиксом "~$"',
         files_to_create=["~$doc.docx", "report.txt"],
         expected_output=["report.txt"],
@@ -147,7 +147,7 @@ def run_tp_2_1() -> CourseworkTestCase:
 
 def run_tp_2_2() -> CourseworkTestCase:
     return run_scan_case(
-        case_id="TP-2.2",
+        case_id="TП-2.2",
         test_requirement='ТТ-2.2: игнорирование ярлыков с расширением ".lnk"',
         files_to_create=["storage.lnk", "report.txt"],
         expected_output=["report.txt"],
@@ -156,7 +156,7 @@ def run_tp_2_2() -> CourseworkTestCase:
 
 def run_tp_2_3() -> CourseworkTestCase:
     return run_scan_case(
-        case_id="TP-2.3",
+        case_id="TП-2.3",
         test_requirement="ТТ-2.3: включение обычных пользовательских файлов",
         files_to_create=["docs/report.txt", "notes.txt"],
         expected_output=["docs/report.txt", "notes.txt"],
