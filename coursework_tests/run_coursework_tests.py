@@ -60,7 +60,7 @@ def main() -> int:
 def run_tp_1_1() -> CourseworkTestCase:
     return run_build_sync_plan_case(
         case_id="TP-1.1",
-        test_requirement="Download when file exists only remotely",
+        test_requirement="ТТ-1.1: скачивание файла, который существует только на удаленной стороне",
         local_index={},
         server_index={
             "a.txt": build_remote_state(
@@ -78,7 +78,7 @@ def run_tp_1_1() -> CourseworkTestCase:
 def run_tp_1_2() -> CourseworkTestCase:
     return run_build_sync_plan_case(
         case_id="TP-1.2",
-        test_requirement="Upload when file exists only locally",
+        test_requirement="ТТ-1.2: загрузка файла, который существует только локально",
         local_index={"a.txt": {"hash": "local-hash-a", "mtime": 100.0}},
         server_index={},
         local_db_index={},
@@ -89,7 +89,7 @@ def run_tp_1_2() -> CourseworkTestCase:
 def run_tp_1_3() -> CourseworkTestCase:
     return run_build_sync_plan_case(
         case_id="TP-1.3",
-        test_requirement="Delete remote when file was previously synced, exists remotely, but is missing locally",
+        test_requirement="ТТ-1.3: удаление удаленного файла, если он был синхронизирован ранее, есть на сервере, но отсутствует локально",
         local_index={},
         server_index={
             "a.txt": build_remote_state(
@@ -114,7 +114,7 @@ def run_tp_1_3() -> CourseworkTestCase:
 def run_tp_1_4() -> CourseworkTestCase:
     return run_build_sync_plan_case(
         case_id="TP-1.4",
-        test_requirement="Delete local when file exists locally and remote state is deleted/tombstoned",
+        test_requirement="ТТ-1.4: удаление локального файла, если удаленное состояние помечено как tombstone",
         local_index={"a.txt": {"hash": "local-hash-a", "mtime": 100.0}},
         server_index={
             "a.txt": build_remote_state(
@@ -139,25 +139,25 @@ def run_tp_1_4() -> CourseworkTestCase:
 def run_tp_2_1() -> CourseworkTestCase:
     return run_scan_case(
         case_id="TP-2.1",
-        test_requirement='Ignore Microsoft Word temporary files starting with "~$"',
-        files_to_create=["~$draft.docx"],
-        expected_output=[],
+        test_requirement='ТТ-2.1: игнорирование временных файлов Microsoft Word с префиксом "~$"',
+        files_to_create=["~$doc.docx", "report.txt"],
+        expected_output=["report.txt"],
     )
 
 
 def run_tp_2_2() -> CourseworkTestCase:
     return run_scan_case(
         case_id="TP-2.2",
-        test_requirement='Ignore ".lnk" shortcut files',
-        files_to_create=["shortcut.lnk"],
-        expected_output=[],
+        test_requirement='ТТ-2.2: игнорирование ярлыков с расширением ".lnk"',
+        files_to_create=["storage.lnk", "report.txt"],
+        expected_output=["report.txt"],
     )
 
 
 def run_tp_2_3() -> CourseworkTestCase:
     return run_scan_case(
         case_id="TP-2.3",
-        test_requirement="Include regular user files",
+        test_requirement="ТТ-2.3: включение обычных пользовательских файлов",
         files_to_create=["docs/report.txt", "notes.txt"],
         expected_output=["docs/report.txt", "notes.txt"],
     )
@@ -174,7 +174,7 @@ def run_build_sync_plan_case(
 ) -> CourseworkTestCase:
     test_case = CourseworkTestCase(
         case_id=case_id,
-        functional_requirement="FR-1",
+        functional_requirement="ФТ-1",
         test_requirement=test_requirement,
         tested_method="client.app.sync.sync_engine.build_sync_plan",
         input_data={
@@ -212,7 +212,7 @@ def run_scan_case(
 ) -> CourseworkTestCase:
     test_case = CourseworkTestCase(
         case_id=case_id,
-        functional_requirement="FR-2",
+        functional_requirement="ФТ-2",
         test_requirement=test_requirement,
         tested_method="client.app.sync.file_utils.scan_local_folder",
         input_data={"files_to_create": files_to_create},
@@ -241,7 +241,7 @@ def run_scan_case(
 
 
 def normalize_sync_actions(actions: list[SyncAction]) -> list[tuple[str, str]]:
-    return [(action.action, action.path) for action in actions]
+    return sorted((action.action, action.path) for action in actions)
 
 
 def build_remote_state(
@@ -306,37 +306,37 @@ def write_results_file(test_cases: list[CourseworkTestCase], output_path: Path) 
     failed = len(test_cases) - passed
 
     lines: list[str] = []
-    lines.append("LAN Cloud Sync Coursework Test Results")
+    lines.append("Результаты курсового тестирования LAN Cloud Sync")
     lines.append("=" * 60)
     lines.append("")
 
     for test_case in test_cases:
-        lines.append(f"Test case ID: {test_case.case_id}")
-        lines.append(f"Functional requirement: {test_case.functional_requirement}")
-        lines.append(f"Test requirement: {test_case.test_requirement}")
-        lines.append(f"Tested method: {test_case.tested_method}")
-        lines.append("Input data:")
+        lines.append(f"Идентификатор тестового примера: {test_case.case_id}")
+        lines.append(f"Функциональное требование: {test_case.functional_requirement}")
+        lines.append(f"Тестовое требование: {test_case.test_requirement}")
+        lines.append(f"Проверяемый метод: {test_case.tested_method}")
+        lines.append("Входные данные:")
         lines.append(indent_block(pformat(test_case.input_data, width=100)))
-        lines.append("Expected output:")
+        lines.append("Ожидаемый результат:")
         lines.append(indent_block(pformat(test_case.expected_output, width=100)))
-        lines.append("Actual output:")
+        lines.append("Фактический результат:")
         lines.append(indent_block(pformat(test_case.actual_output, width=100)))
         lines.append(
-            "Output comparison: "
-            + ("match" if test_case.outputs_match else "do not match")
+            "Сравнение результатов: "
+            + ("совпадение" if test_case.outputs_match else "несовпадение")
         )
         lines.append(
-            "Completion status: "
-            + ("completed successfully" if test_case.completed_successfully else "completed unsuccessfully")
+            "Статус выполнения: "
+            + ("успешно" if test_case.completed_successfully else "неуспешно")
         )
         if test_case.error_message:
-            lines.append(f"Error message: {test_case.error_message}")
+            lines.append(f"Сообщение об ошибке: {test_case.error_message}")
         lines.append("-" * 60)
 
-    lines.append("Summary")
-    lines.append(f"Total tests: {len(test_cases)}")
-    lines.append(f"Passed: {passed}")
-    lines.append(f"Failed: {failed}")
+    lines.append("Сводка")
+    lines.append(f"Всего тестов: {len(test_cases)}")
+    lines.append(f"Успешно: {passed}")
+    lines.append(f"Неуспешно: {failed}")
     lines.append("")
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
