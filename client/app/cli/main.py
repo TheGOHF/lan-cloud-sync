@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ..sync.config import ClientConfig, ensure_client_config, set_client_config
-from ..sync.db import init_db, list_local_files
+from ..sync.db import init_db, list_local_files, prune_local_tombstones
 from ..sync.watcher import watch_forever
 from ..sync.sync_engine import SyncAction, apply_action, get_sync_plan, sync
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -54,6 +54,10 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = subparsers.add_parser("list")
     list_parser.set_defaults(handler=handle_list)
 
+    prune_parser = subparsers.add_parser("prune-tombstones")
+    prune_parser.add_argument("--older-than-days", type=int, default=30)
+    prune_parser.set_defaults(handler=handle_prune_tombstones)
+
     watch_parser = subparsers.add_parser("watch")
     watch_parser.add_argument("--device-id")
     watch_parser.add_argument("--base-path", type=Path)
@@ -89,8 +93,18 @@ def handle_download(args: argparse.Namespace, config: ClientConfig) -> None:
 
 def handle_list(_: argparse.Namespace, config: ClientConfig) -> None:
     for entry in list_local_files(config):
+        if entry.deleted:
+            continue
         conflict_flag = "conflict" if entry.conflict else "ok"
         print(f"{entry.path}\tv{entry.version}\t{entry.hash}\t{conflict_flag}")
+
+
+def handle_prune_tombstones(args: argparse.Namespace, config: ClientConfig) -> None:
+    deleted_count = prune_local_tombstones(
+        older_than_days=args.older_than_days,
+        config=config,
+    )
+    print(f"pruned local tombstones: {deleted_count}")
 
 
 def handle_watch(_: argparse.Namespace, config: ClientConfig) -> None:

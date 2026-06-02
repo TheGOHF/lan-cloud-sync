@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set "MATCH=uvicorn server.app.main:app"
+set "MATCH=server.app.cli.main serve"
 
 powershell -NoProfile -Command ^
   "$targets = Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^pythonw?\.exe$' -and $_.CommandLine -like '*%MATCH%*' }; " ^

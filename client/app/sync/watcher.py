@@ -79,7 +79,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 event_sink=self.event_sink,
             )
         except Exception:
-            logger.exception("Scheduled sync failed")
+            logger.warning("Scheduled sync failed")
 
         with self._timer_lock:
             self._debounce_timer = None
@@ -181,9 +181,8 @@ class SyncWatcherService:
                 config=self.config,
                 event_sink=self.event_sink,
             )
-        except Exception:
-            self.stop()
-            raise
+        except Exception as exc:
+            logger.warning("Initial sync failed; watcher will keep retrying: %s", exc)
 
     def stop(self) -> None:
         with self._state_lock:
@@ -320,7 +319,7 @@ def _poll_remote_changes(
                 event_sink=event_sink,
             )
         except Exception:
-            logger.exception("Polling sync failed")
+            logger.warning("Polling sync failed")
 
 
 def _emit_event(

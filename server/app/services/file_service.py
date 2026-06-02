@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import delete
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -89,6 +90,19 @@ def soft_delete_file(
 
     db.refresh(file_record)
     return file_record
+
+
+def prune_tombstones(db: Session, *, older_than_days: int) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+    with db.begin():
+        result = db.execute(
+            delete(FileRecord).where(
+                FileRecord.deleted.is_(True),
+                FileRecord.updated_at < cutoff,
+            )
+        )
+
+    return result.rowcount or 0
 
 
 def to_file_metadata_response(file_record: FileRecord) -> FileMetadataResponse:

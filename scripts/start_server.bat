@@ -15,6 +15,15 @@ if not exist "%LOG_DIR%" (
     mkdir "%LOG_DIR%"
 )
 
+"%PYTHON_EXE%" --version >nul 2>> "%LOG_FILE%"
+if errorlevel 1 (
+    echo Server venv Python exists but cannot be started: "%PYTHON_EXE%" >> "%LOG_FILE%"
+    echo Recreate the server venv and reinstall requirements. >> "%LOG_FILE%"
+    echo Server venv Python exists but cannot be started: "%PYTHON_EXE%"
+    echo Recreate the server venv and reinstall requirements.
+    exit /b 1
+)
+
 cd /d "%ROOT_DIR%"
-"%PYTHON_EXE%" -m uvicorn server.app.main:app --host 0.0.0.0 --port 8000 >> "%LOG_FILE%" 2>&1
+"%PYTHON_EXE%" -m server.app.cli.main serve >> "%LOG_FILE%" 2>&1
 exit /b %errorlevel%

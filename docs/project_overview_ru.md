@@ -17,19 +17,23 @@ python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8000
 
 ### Клиент
 
-- Реальная точка входа клиента: `client/app/cli/main.py`.
+- CLI-точка входа клиента: `client/app/cli/main.py`.
 - Этот модуль реализует CLI-приложение `lan-cloud-sync` на основе `argparse`.
-- Поддерживаемые команды: `sync`, `status`, `upload`, `download`, `list`, `watch`.
+- Поддерживаемые команды: `sync`, `status`, `upload`, `download`, `list`, `watch`, `prune-tombstones`.
+- GUI-точка входа клиента: `client/app/gui/main.py`.
+- GUI используется для первичной настройки и ручного запуска синхронизации/наблюдения.
 - В репозитории есть рабочий скрипт запуска фонового клиента: `scripts/start_client_watch.bat`.
 - Этот скрипт запускает клиент так:
 
 ```bat
-python -m app.cli.main watch --device-id <device_id>
+python -m app.cli.main watch
 ```
 
 ### Другие наблюдения
 
 - `client/app/main.py` содержит только docstring и не выглядит как активная точка входа.
+- Для личного фонового режима добавлены скрипты установки автозапуска:
+  `scripts/install_server_autostart.bat` и `scripts/install_client_autostart.bat`.
 - В каталоге `scripts/` также есть вспомогательные скрипты запуска, остановки и проверки статуса.
 
 ## 2. Где находятся серверная и клиентская части
@@ -208,7 +212,8 @@ python -m app.cli.main watch --device-id <device_id>
 
 ### Хранение файлов
 
-- Физические серверные файлы хранятся в `server/storage/`.
+- Физические серверные файлы по умолчанию хранятся в `server/storage/`.
+- Серверное хранилище можно переназначить через `%LOCALAPPDATA%\lan-cloud-sync\server-config.json`.
 - Сервер строит пути хранения из нормализованных относительных путей.
 - Нормализация пути запрещает абсолютные пути и `..`.
 
@@ -218,10 +223,10 @@ python -m app.cli.main watch --device-id <device_id>
 
 Да, есть два отдельных хранилища метаданных.
 
-- Серверная БД: `server/data.db` (SQLite).
+- Серверная БД по умолчанию: `server/data.db` (SQLite).
   Таблица `files` хранит:
   `id`, `path`, `version`, `hash`, `updated_at`, `device_id`, `deleted`.
-- Клиентская БД: `client/data/sync_state.db` (SQLite).
+- Клиентская БД по умолчанию задаётся клиентским конфигом `%LOCALAPPDATA%\lan-cloud-sync\client-config.json`.
   Таблица `local_files` хранит:
   `path`, `hash`, `version`, `last_synced`, `conflict`, `deleted`.
 
@@ -238,12 +243,12 @@ python -m app.cli.main watch --device-id <device_id>
 
 ### Конфигурация
 
-- Runtime-конфигурация клиента хранится как константы в `client/app/sync/config.py`.
-- Основные значения:
-  `BASE_PATH`, `LOCAL_DB_PATH`, `SERVER_URL`, `CHUNK_SIZE`, `POLL_INTERVAL_SECONDS`, `LOCAL_EVENT_DEBOUNCE_SECONDS`.
-- Серверные пути к БД и storage также захардкожены в коде:
-  `server/app/db/session.py` и `server/app/services/storage_service.py`.
-- Отдельный `.env`, YAML, JSON или выделенный settings layer в репозитории не найден.
+- Runtime-конфигурация клиента хранится в JSON:
+  `%LOCALAPPDATA%\lan-cloud-sync\client-config.json`.
+- Runtime-конфигурация сервера хранится в JSON:
+  `%LOCALAPPDATA%\lan-cloud-sync\server-config.json`.
+- Серверный конфиг управляет `host`, `port`, `storage_path`, `db_path` и сроком хранения tombstone.
+- Клиентский конфиг управляет `server_url`, `base_path`, `local_db_path`, интервалами синхронизации и `device_id`.
 
 ### Многопоточность
 

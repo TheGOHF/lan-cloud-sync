@@ -5,6 +5,7 @@ set "ROOT_DIR=%~dp0.."
 set "SERVER_LOG=%ROOT_DIR%\logs\server.log"
 set "CLIENT_LOG=%ROOT_DIR%\logs\client-watch.log"
 set "STATUS_LOG=%ROOT_DIR%\logs\check-status.log"
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 
 if not exist "%ROOT_DIR%\logs" (
     mkdir "%ROOT_DIR%\logs"
@@ -28,6 +29,21 @@ echo.
 echo [Python Processes]
 tasklist /FI "IMAGENAME eq python.exe"
 tasklist /FI "IMAGENAME eq pythonw.exe"
+echo.
+
+echo [Autostart]
+powershell -NoProfile -Command "schtasks /Query /TN 'LAN Cloud Sync Server' /FO LIST 2>$null | Select-String 'TaskName|Status|Last Run Time|Last Result'; if ($LASTEXITCODE -ne 0) { Write-Host 'Scheduled task LAN Cloud Sync Server not found.' }"
+powershell -NoProfile -Command "schtasks /Query /TN 'LAN Cloud Sync Client Watcher' /FO LIST 2>$null | Select-String 'TaskName|Status|Last Run Time|Last Result'; if ($LASTEXITCODE -ne 0) { Write-Host 'Scheduled task LAN Cloud Sync Client Watcher not found.' }"
+if exist "%STARTUP_DIR%\lan-cloud-sync-server.vbs" (
+    echo Startup launcher found: "%STARTUP_DIR%\lan-cloud-sync-server.vbs"
+) else (
+    echo Startup launcher not found: "%STARTUP_DIR%\lan-cloud-sync-server.vbs"
+)
+if exist "%STARTUP_DIR%\lan-cloud-sync-client-watcher.vbs" (
+    echo Startup launcher found: "%STARTUP_DIR%\lan-cloud-sync-client-watcher.vbs"
+) else (
+    echo Startup launcher not found: "%STARTUP_DIR%\lan-cloud-sync-client-watcher.vbs"
+)
 echo.
 
 echo [Client GUI Process]

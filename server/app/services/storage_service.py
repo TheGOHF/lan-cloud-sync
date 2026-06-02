@@ -7,10 +7,13 @@ from typing import BinaryIO
 
 from fastapi import UploadFile
 
+from server.app.config import get_server_config
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-STORAGE_DIR = BASE_DIR / "storage"
 CHUNK_SIZE = 1024 * 1024
+
+
+def get_storage_dir() -> Path:
+    return get_server_config().storage_path.resolve()
 
 
 def save_upload_file(*, file: UploadFile, relative_path: str) -> tuple[str, Path]:
@@ -41,7 +44,7 @@ def normalize_relative_path(relative_path: str) -> str:
 
 def build_storage_path(relative_path: str) -> Path:
     normalized_path = normalize_relative_path(relative_path)
-    return STORAGE_DIR.joinpath(*normalized_path.split("/"))
+    return get_storage_dir().joinpath(*normalized_path.split("/"))
 
 
 def get_existing_file_path(relative_path: str) -> Path:
@@ -55,13 +58,14 @@ def get_existing_file_path(relative_path: str) -> Path:
 
 def list_storage_files() -> list[str]:
     relative_paths: list[str] = []
+    storage_dir = get_storage_dir()
 
-    if not STORAGE_DIR.exists():
+    if not storage_dir.exists():
         return relative_paths
 
-    for file_path in STORAGE_DIR.rglob("*"):
+    for file_path in storage_dir.rglob("*"):
         if file_path.is_file():
-            relative_paths.append(file_path.relative_to(STORAGE_DIR).as_posix())
+            relative_paths.append(file_path.relative_to(storage_dir).as_posix())
 
     return sorted(relative_paths)
 
@@ -83,7 +87,8 @@ def iter_file_chunks(file_path: Path) -> Iterator[bytes]:
 
 
 def _remove_empty_parent_directories(directory: Path) -> None:
-    while directory != STORAGE_DIR and directory.exists():
+    storage_dir = get_storage_dir()
+    while directory != storage_dir and directory.exists():
         try:
             directory.rmdir()
         except OSError:

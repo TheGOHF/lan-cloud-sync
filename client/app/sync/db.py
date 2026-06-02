@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import Boolean, DateTime, Integer, String, create_engine, inspect, select, text
+from sqlalchemy import Boolean, DateTime, Integer, String, create_engine, delete, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -86,6 +86,24 @@ def list_local_files(config: ClientConfig | None = None) -> Sequence[LocalFileEn
         ).scalars().all()
 
 
+def prune_local_tombstones(
+    *,
+    older_than_days: int,
+    config: ClientConfig | None = None,
+) -> int:
+    session_factory = get_session_factory(config)
+
+    with session_factory.begin() as session:
+        statement = delete(LocalFileEntry).where(LocalFileEntry.deleted.is_(True))
+        if older_than_days > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+            statement = statement.where(LocalFileEntry.last_synced < cutoff)
+
+        result = session.execute(statement)
+
+    return result.rowcount or 0
+
+
 def get_latest_sync_time(config: ClientConfig | None = None) -> datetime | None:
     entries = list_local_files(config)
     if not entries:
@@ -102,7 +120,10 @@ def get_engine(config: ClientConfig | None = None) -> Engine:
         return engine
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{db_path.as_posix()}",
+        connect_args={"check_same_thread": False},
+    )
     _engine_cache[db_path] = engine
     return engine
 
