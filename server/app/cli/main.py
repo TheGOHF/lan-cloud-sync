@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import atexit
+import os
+import sys
 
 import uvicorn
 
-from server.app.config import ensure_server_config
+from server.app.config import PID_PATH, ensure_server_config
 from server.app.db.session import get_session_factory, init_db
 from server.app.services.file_service import prune_tombstones
 
@@ -33,7 +36,26 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _acquire_pid_lock() -> None:
+    pid = os.getpid()
+    if PID_PATH.exists():
+        try:
+            existing = int(PID_PATH.read_text().strip())
+            if existing == pid:
+                PID_PATH.write_text(str(pid))
+                return
+            os.kill(existing, 0)
+            print(f"Сервер уже запущен (PID {existing}). Используй stop_server.bat сначала.")
+            sys.exit(1)
+        except (OSError, ValueError):
+            pass
+    PID_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PID_PATH.write_text(str(pid))
+    atexit.register(lambda: PID_PATH.unlink(missing_ok=True))
+
+
 def handle_serve(_: argparse.Namespace, config) -> None:
+    _acquire_pid_lock()
     uvicorn.run(
         "server.app.main:app",
         host=config.host,

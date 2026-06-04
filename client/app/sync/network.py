@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import requests
 from requests import Response
+from requests.adapters import HTTPAdapter
 from requests import Session
 from requests.exceptions import RequestException
 
@@ -88,6 +89,18 @@ def delete_file(
     return DeleteFileResponse.model_validate(response.json())
 
 
+_current_source: str | None = None
+_session: Session | None = None
+
+
+def _get_session(source_address: str | None = None) -> Session:
+    global _current_source, _session
+    if _session is None or _current_source != source_address:
+        _current_source = source_address
+        _session = _build_session(source_address)
+    return _session
+
+
 def _request(
     method: str,
     endpoint: str,
@@ -97,9 +110,10 @@ def _request(
 ) -> Response:
     resolved_config = config or get_client_config()
     url = f"{resolved_config.server_url.rstrip('/')}{endpoint}"
+    client = _get_session(resolved_config.source_address)
 
     try:
-        response = session.request(method, url, timeout=30, **kwargs)
+        response = client.request(method, url, timeout=30, **kwargs)
         response.raise_for_status()
     except RequestException as exc:
         raise NetworkError(_build_error_message(endpoint, exc)) from exc
@@ -107,13 +121,30 @@ def _request(
     return response
 
 
-def _build_session() -> Session:
+def _build_session(source_address: str | None = None) -> Session:
     client = requests.Session()
     client.trust_env = False
+    if source_address:
+        adapter = SourceAddressHTTPAdapter(source_address)
+        client.mount("http://", adapter)
+        client.mount("https://", adapter)
     return client
 
 
-session = _build_session()
+class SourceAddressHTTPAdapter(HTTPAdapter):
+    def __init__(self, source_address: str, *args, **kwargs):
+        self.source_address = source_address
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, *args, **kwargs):
+        if self.source_address:
+            kwargs["source_address"] = (self.source_address, 0)
+        return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, *args, **kwargs):
+        if self.source_address:
+            kwargs["source_address"] = (self.source_address, 0)
+        return super().proxy_manager_for(*args, **kwargs)
 
 
 class MultipartUploadStream:

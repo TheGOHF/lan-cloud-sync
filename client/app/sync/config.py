@@ -25,6 +25,7 @@ class ClientConfig:
     poll_interval_seconds: int
     local_event_debounce_seconds: int
     device_id: str
+    source_address: str | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -63,6 +64,7 @@ def load_client_config(config_path: Path = CONFIG_PATH) -> ClientConfig | None:
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     return ClientConfig(
         server_url=str(payload["server_url"]),
+        source_address=str(payload["source_address"]) if payload.get("source_address") else None,
         base_path=Path(payload["base_path"]).expanduser(),
         local_db_path=Path(payload["local_db_path"]).expanduser(),
         chunk_size=int(payload["chunk_size"]),

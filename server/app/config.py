@@ -35,6 +35,7 @@ class ServerConfig:
 
 CONFIG_DIR = _default_server_config_dir()
 CONFIG_PATH = CONFIG_DIR / "server-config.json"
+PID_PATH = CONFIG_DIR / "server.pid"
 
 
 def default_server_config() -> ServerConfig:

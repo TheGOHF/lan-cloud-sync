@@ -32,22 +32,30 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     sync_parser = subparsers.add_parser("sync")
+    sync_parser.add_argument("--server-url")
+    sync_parser.add_argument("--source-address")
     sync_parser.add_argument("--device-id")
     sync_parser.add_argument("--base-path", type=Path)
     sync_parser.set_defaults(handler=handle_sync)
 
     status_parser = subparsers.add_parser("status")
+    status_parser.add_argument("--server-url")
+    status_parser.add_argument("--source-address")
     status_parser.add_argument("--base-path", type=Path)
     status_parser.set_defaults(handler=handle_status)
 
     upload_parser = subparsers.add_parser("upload")
     upload_parser.add_argument("file")
+    upload_parser.add_argument("--server-url")
+    upload_parser.add_argument("--source-address")
     upload_parser.add_argument("--device-id")
     upload_parser.add_argument("--base-path", type=Path)
     upload_parser.set_defaults(handler=handle_upload)
 
     download_parser = subparsers.add_parser("download")
     download_parser.add_argument("file")
+    download_parser.add_argument("--server-url")
+    download_parser.add_argument("--source-address")
     download_parser.add_argument("--base-path", type=Path)
     download_parser.set_defaults(handler=handle_download)
 
@@ -59,6 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     prune_parser.set_defaults(handler=handle_prune_tombstones)
 
     watch_parser = subparsers.add_parser("watch")
+    watch_parser.add_argument("--server-url")
+    watch_parser.add_argument("--source-address")
     watch_parser.add_argument("--device-id")
     watch_parser.add_argument("--base-path", type=Path)
     watch_parser.add_argument("--poll-interval", type=int)
@@ -119,6 +129,8 @@ def handle_watch(_: argparse.Namespace, config: ClientConfig) -> None:
 def resolve_cli_config(args: argparse.Namespace, base_config: ClientConfig) -> ClientConfig:
     poll_interval = getattr(args, "poll_interval", None)
     return base_config.with_overrides(
+        server_url=getattr(args, "server_url", None),
+        source_address=getattr(args, "source_address", None),
         base_path=getattr(args, "base_path", None),
         device_id=getattr(args, "device_id", None),
         poll_interval_seconds=poll_interval,
