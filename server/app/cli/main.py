@@ -4,13 +4,12 @@ import argparse
 import atexit
 import os
 import sys
-
 import uvicorn
 
 from server.app.config import PID_PATH, ensure_server_config
 from server.app.db.session import get_session_factory, init_db
 from server.app.services.file_service import prune_tombstones
-
+from time import time
 
 def main() -> None:
     config = ensure_server_config()
@@ -38,21 +37,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _acquire_pid_lock() -> None:
     pid = os.getpid()
-    if PID_PATH.exists():
-        try:
-            existing = int(PID_PATH.read_text().strip())
-            if existing == pid:
-                PID_PATH.write_text(str(pid))
-                return
-            os.kill(existing, 0)
-            print(f"Сервер уже запущен (PID {existing}). Используй stop_server.bat сначала.")
-            sys.exit(1)
-        except (OSError, ValueError):
-            pass
-    PID_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PID_PATH.write_text(str(pid))
-    atexit.register(lambda: PID_PATH.unlink(missing_ok=True))
-
+    try:
+        PID_PATH.parent.mkdir(parents=True, exist_ok=True)
+        open(PID_PATH, "x")
+        PID_PATH.write_text(str(pid))
+        atexit.register(lambda: PID_PATH.unlink(missing_ok=True))
+        return
+    except (FileExistsError):
+        if time() - PID_PATH.stat().st_mtime > 30:
+            PID_PATH.unlink()
+            PID_PATH.write_text(str(pid))
+            atexit.register(lambda: PID_PATH.unlink(missing_ok=True))
+            return
+        print(f"Сервер уже запущен (PID {PID_PATH.read_text().strip()}). Сперва используй stop_server.")
+        sys.exit(1)
+            
 
 def handle_serve(_: argparse.Namespace, config) -> None:
     _acquire_pid_lock()

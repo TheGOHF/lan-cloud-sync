@@ -3,3 +3,4 @@ sqlalchemy
 pydantic
 python-multipart
 uvicorn
+platformdirs
