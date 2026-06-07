@@ -6,14 +6,10 @@ import socket
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from uuid import uuid4
-
+from platformdirs import user_config_path
 
 def _default_client_config_dir() -> Path:
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if local_app_data:
-        return Path(local_app_data) / "lan-cloud-sync"
-
-    return Path.home() / "AppData" / "Local" / "lan-cloud-sync"
+    return user_config_path("lan-cloud-sync", appauthor=False)
 
 
 @dataclass(frozen=True)

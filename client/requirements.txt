@@ -3,3 +3,4 @@ sqlalchemy
 watchdog
 pydantic
 PySide6
+platformdirs
