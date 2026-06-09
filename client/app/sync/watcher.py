@@ -39,6 +39,8 @@ class SyncEventHandler(FileSystemEventHandler):
         self._debounce_timer: Timer | None = None
 
     def on_any_event(self, event: FileSystemEvent) -> None:
+        if event.event_type.startswith(("opened", "closed")):
+            return
         if event.is_directory:
             return
 

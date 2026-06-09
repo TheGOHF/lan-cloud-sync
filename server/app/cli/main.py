@@ -38,7 +38,6 @@ def build_parser() -> argparse.ArgumentParser:
 def _acquire_pid_lock() -> None:
     pid = os.getpid()
     try:
-        PID_PATH.parent.mkdir(parents=True, exist_ok=True)
         open(PID_PATH, "x")
         PID_PATH.write_text(str(pid))
         atexit.register(lambda: PID_PATH.unlink(missing_ok=True))
